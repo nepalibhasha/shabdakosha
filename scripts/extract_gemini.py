@@ -2,7 +2,8 @@
 """Extract dictionary entries from two-page PDF chunks with Gemini.
 
 This script is provided for reproducibility. The maintained corpus is the text
-under ``data/ocr_results``; contributors normally edit those files directly.
+under ``data/dictionaries/<dictionary-id>/entries``; contributors normally edit
+those files directly.
 """
 
 from __future__ import annotations

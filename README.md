@@ -7,8 +7,8 @@ Brihat Shabdakosh.
 ### How to Contribute
 
 The main way to contribute is by correcting the extracted text files located in
-`data/dictionaries/<dictionary-id>/entries/`. These files may contain OCR or AI
-extraction errors.
+`data/dictionaries/<dictionary-id>/entries/`. These files may contain extraction
+errors.
 
 1.  **Fork** this repository to your own GitHub account.
 2.  **Clone** your fork to your local machine.

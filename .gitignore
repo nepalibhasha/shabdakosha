@@ -22,7 +22,6 @@
 !/data/source/
 !/data/source/Sabdakosh10th.pdf
 !/data/source/SanketaChinha.pdf
-!/data/ocr_results/*/*.txt
 !/data/dictionaries/
 !/data/dictionaries/*/
 !/data/dictionaries/*/metadata.json
