@@ -1,0 +1,17 @@
+{
+  "id": "kosha-brihat",
+  "name": "नेपाली बृहत् शब्दकोश",
+  "name_en": "Nepali Brihat Shabdakosh",
+  "source_language": "nepali",
+  "target_language": "nepali",
+  "script": "devanagari",
+  "source": {
+    "type": "pdf",
+    "file": "data/source/Sabdakosh10th.pdf",
+    "notes": "Each reviewed text file is named with the PDF page range it was extracted from."
+  },
+  "format": {
+    "entry_separator": " --- ",
+    "entry_shape": "headword --- part_of_speech_or_etymology --- definition"
+  }
+}

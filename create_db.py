@@ -1,187 +1,234 @@
 #!/usr/bin/env python3
+"""Build a local SQLite database from the reviewed text corpus."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import re
 import sqlite3
-import os
-import sys
+from pathlib import Path
 
 
-def clean_text(text):
-    """Basic cleaning for extracted text parts."""
-    # Strip leading/trailing whitespace. Return None if the result is empty.
-    cleaned = text.strip() if text else ""
-    return cleaned if cleaned else None
+ENTRY_SEP = " --- "
+NEPALI_DIGITS = "०१२३४५६७८९"
 
 
-def parse_and_insert(db_cursor, file_path):
-    """Parses a single text file and inserts entries into the database."""
-    print(f"Processing file: {file_path}")
-    entries_added = 0
-    try:
-        with open(file_path, "r", encoding="utf-8") as f:
-            for line_num, line in enumerate(f, 1):
-                line = line.strip()
-                if not line:
-                    continue  # Skip empty lines
-
-                # Split the line based on the '---' separator
-                parts = line.split("---")
-
-                # We need at least a word part and a definition part
-                if len(parts) < 2:
-                    # print(f"  Skipping line {line_num} (not enough '---' separators): {line}")
-                    continue
-
-                word = clean_text(parts[0])
-                pos = None
-                definition = None
-
-                if len(parts) >= 3:
-                    # Assumes format: word --- pos --- definition
-                    # The second part is treated as part_of_speech
-                    pos = clean_text(parts[1])
-                    # Join the rest as definition, in case '---' was in the definition
-                    definition = clean_text("---".join(parts[2:]))
-                elif len(parts) == 2:
-                    # Assumes format: word --- definition (no explicit PoS part)
-                    pos = None  # No middle part for PoS
-                    definition = clean_text(parts[1])
-
-                # Only insert if we successfully extracted at least a word and a definition
-                if word and definition:
-                    try:
-                        db_cursor.execute(
-                            """
-                            INSERT INTO entries (words, part_of_speech, definition)
-                            VALUES (?, ?, ?)
-                        """,
-                            (word, pos, definition),
-                        )
-                        entries_added += 1
-                    except sqlite3.Error as e:
-                        print(
-                            f"  Error inserting line {line_num} from {file_path}: {e}",
-                            file=sys.stderr,
-                        )
-                        print(
-                            f"    Word: '{word}', PoS: '{pos}', Def: '{definition}'",
-                            file=sys.stderr,
-                        )
-                # else:
-                # Optional: Log lines skipped due to missing word/definition after parsing
-                # print(f"  Skipping line {line_num} (missing word or definition after parse): {line}")
-
-    except FileNotFoundError:
-        print(f"Error: File not found: {file_path}", file=sys.stderr)
-    except Exception as e:
-        print(f"Error reading or processing file {file_path}: {e}", file=sys.stderr)
-
-    print(f"  Added {entries_added} entries from {os.path.basename(file_path)}")
-    return entries_added
+def natural_sort_key(path: Path):
+    return [int(text) if text.isdigit() else text.lower() for text in re.split(r"(\d+)", str(path))]
 
 
-def get_configuration():
-    """Gets the configuration paths based on the script's location."""
-    # --- Configuration ---
-    # Get the absolute path of the directory where the script resides
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    # Define paths relative to the script's directory
-    db_path = os.path.join(script_dir, "data", "dictionary.db")
-    input_dir = os.path.join(script_dir, "data", "ocr_results")
-
-    print(f"Database path: {db_path}")
-    print(f"Input directory: {input_dir}")
-
-    if not os.path.isdir(input_dir):
-        print(f"Error: Input directory not found: {input_dir}", file=sys.stderr)
-        sys.exit(1)
-
-    return db_path, input_dir
+def int_to_nepali_numeral(value: int) -> str:
+    return "".join(NEPALI_DIGITS[int(digit)] for digit in str(value))
 
 
-def setup_database(db_path):
-    """Connects to the database and ensures the 'entries' table exists."""
-    # Ensure the directory for the database exists
-    db_dir = os.path.dirname(db_path)
-    if db_dir:  # Only create if db_path includes a directory part
-        os.makedirs(db_dir, exist_ok=True)
+def trim_headword(word: str) -> str:
+    word = word.strip()
+    variant = re.search(r"\([०-९]+\)$", word)
+    if variant:
+        base = re.sub(r"[।;(),-]+$", "", word[: variant.start()]).strip()
+        return base + variant.group()
+    return re.sub(r"[।;(),-]+$", "", word).strip()
 
-    conn = None  # Initialize connection variable
-    try:
-        conn = sqlite3.connect(db_path)
-        cursor = conn.cursor()
-        print("Database connection established.")
 
-        # Drop the table if it already exists to prevent duplicate entries on re-runs
-        cursor.execute(
-            """
-            DROP TABLE IF EXISTS entries;
-            """
+def extract_base_word_and_variant(word: str) -> tuple[str, int | None]:
+    match = re.match(r"^(.+)\(([०-९]+)\)$", word)
+    if not match:
+        return word, None
+    number = int("".join(str(NEPALI_DIGITS.index(digit)) for digit in match.group(2)))
+    return match.group(1), number
+
+
+def parse_entry(line: str) -> tuple[str, str | None, str] | None:
+    line = line.strip()
+    if not line:
+        return None
+    match = re.match(r"(.+?)\s+---(.+?)---(.+)", line)
+    if match:
+        word = match.group(1).strip()
+        pos = match.group(2).strip() or None
+        definition = match.group(3).strip()
+    else:
+        match = re.match(r"(.+?)\s+---(.+)", line)
+        if not match:
+            return None
+        word = match.group(1).strip()
+        pos = None
+        definition = match.group(2).strip()
+    if not word or not definition:
+        return None
+    return trim_headword(word), pos, definition
+
+
+def split_definitions(definition: str) -> str:
+    pattern = r"([०-९]+[.])\s*(.*?)(?=(?:\s+[०-९]+[.])|$)"
+    matches = re.findall(pattern, definition)
+    if not matches:
+        return json.dumps(
+            [{"number": None, "text": definition.strip(), "part_of_speech": None}],
+            ensure_ascii=False,
         )
+    return json.dumps(
+        [
+            {"number": number, "text": text.strip(), "part_of_speech": None}
+            for number, text in matches
+        ],
+        ensure_ascii=False,
+    )
 
-        cursor.execute(
-            """
-            CREATE TABLE IF NOT EXISTS entries (
-                words TEXT,
-                part_of_speech TEXT,
-                definition TEXT
-            );
-            """
-        )
-        cursor.execute(
-            """
-           CREATE INDEX IF NOT EXISTS idx_words ON entries (words)
+
+def iter_entries(input_dir: Path):
+    for path in sorted(input_dir.glob("*/*.txt"), key=natural_sort_key):
+        for line_no, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            parsed = parse_entry(line)
+            if parsed is None:
+                if line.strip():
+                    print(f"Skipping malformed line: {path}:{line_no}: {line[:100]}")
+                continue
+            word, pos, definition = parsed
+            yield {
+                "word": word,
+                "part_of_speech": pos,
+                "definition": definition,
+                "source_file": str(path.relative_to(input_dir)),
+            }
+
+
+def setup_database(db_path: Path):
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+    cursor.execute("DROP TABLE IF EXISTS entries")
+    cursor.execute(
         """
+        CREATE TABLE entries (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            word TEXT NOT NULL,
+            base_word TEXT NOT NULL,
+            variant_number INTEGER,
+            part_of_speech TEXT,
+            definition TEXT NOT NULL,
+            split_definitions TEXT NOT NULL,
+            source_file TEXT NOT NULL
         )
-        conn.commit()  # Commit table creation
-        print("Table 'entries' ensured.")
-        return conn, cursor
-    except sqlite3.Error as e:
-        print(f"Database setup error: {e}", file=sys.stderr)
-        if conn:
-            conn.close()  # Close connection if setup failed after opening
-        sys.exit(1)  # Exit if DB setup fails
+        """
+    )
+    cursor.execute("CREATE UNIQUE INDEX idx_entries_word ON entries(word)")
+    cursor.execute("CREATE INDEX idx_entries_base_word ON entries(base_word)")
+    return conn
 
 
-def process_directory(input_dir, cursor):
-    """Walks the input directory, parses .txt files, and inserts data."""
-    total_entries_added = 0
-    print("Starting file processing...")
-    # Use os.walk to recursively find all files in the input directory
-    for root, dirs, files in os.walk(input_dir):
-        # Sort files for consistent processing order (optional)
-        files.sort()
-        for filename in files:
-            # Process only files ending with .txt (case-insensitive)
-            if filename.lower().endswith(".txt"):
-                file_path = os.path.join(root, filename)
-                # Parse the file and add entries to the DB
-                total_entries_added += parse_and_insert(cursor, file_path)
-    return total_entries_added
+def insert_entries(conn, entries):
+    cursor = conn.cursor()
+    previous_word: str | None = None
+    duplicate_counts: dict[str, int] = {}
+    inserted = updated = numbered = skipped = 0
+
+    for entry in entries:
+        word = entry["word"]
+        definition = entry["definition"]
+        split_json = split_definitions(definition)
+        base_word, variant_number = extract_base_word_and_variant(word)
+
+        try:
+            cursor.execute(
+                """
+                INSERT INTO entries
+                (word, base_word, variant_number, part_of_speech, definition, split_definitions, source_file)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    word,
+                    base_word,
+                    variant_number,
+                    entry["part_of_speech"],
+                    definition,
+                    split_json,
+                    entry["source_file"],
+                ),
+            )
+            inserted += 1
+        except sqlite3.IntegrityError:
+            if word == previous_word:
+                cursor.execute("SELECT id, LENGTH(definition) FROM entries WHERE word = ?", (word,))
+                row = cursor.fetchone()
+                if row and len(definition) > row[1]:
+                    cursor.execute(
+                        """
+                        UPDATE entries
+                        SET part_of_speech = ?, definition = ?, split_definitions = ?, source_file = ?
+                        WHERE id = ?
+                        """,
+                        (entry["part_of_speech"], definition, split_json, entry["source_file"], row[0]),
+                    )
+                    updated += 1
+                else:
+                    skipped += 1
+            else:
+                if word not in duplicate_counts:
+                    cursor.execute("SELECT id FROM entries WHERE word = ?", (word,))
+                    existing = cursor.fetchone()
+                    if existing:
+                        first_word = f"{word}(१)"
+                        cursor.execute(
+                            "UPDATE entries SET word = ?, base_word = ?, variant_number = ? WHERE id = ?",
+                            (first_word, word, 1, existing[0]),
+                        )
+                    duplicate_counts[word] = 1
+
+                duplicate_counts[word] += 1
+                count = duplicate_counts[word]
+                numbered_word = f"{word}({int_to_nepali_numeral(count)})"
+                cursor.execute(
+                    """
+                    INSERT INTO entries
+                    (word, base_word, variant_number, part_of_speech, definition, split_definitions, source_file)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        numbered_word,
+                        word,
+                        count,
+                        entry["part_of_speech"],
+                        definition,
+                        split_json,
+                        entry["source_file"],
+                    ),
+                )
+                numbered += 1
+
+        previous_word = word
+
+    conn.commit()
+    return inserted, updated, numbered, skipped
 
 
-def main():
-    """Main execution function."""
-    db_path, input_dir = get_configuration()
-    conn = None
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Build data/dictionary.db from reviewed text files.")
+    parser.add_argument(
+        "--input-dir",
+        type=Path,
+        default=Path("data/dictionaries/kosha-brihat/entries"),
+    )
+    parser.add_argument("--db-path", type=Path, default=Path("data/dictionary.db"))
+    args = parser.parse_args()
+
+    if not args.input_dir.is_dir():
+        raise SystemExit(f"Input directory not found: {args.input_dir}")
+
+    conn = setup_database(args.db_path)
     try:
-        conn, cursor = setup_database(db_path)
-        total_entries_added = process_directory(input_dir, cursor)
-        conn.commit()  # Commit all inserts after processing all files
-        print(
-            f"\nProcessing complete. Total entries added to the database: {total_entries_added}"
-        )
-
-    except sqlite3.Error as e:
-        print(f"Database error occurred during processing: {e}", file=sys.stderr)
-        if conn:
-            conn.rollback()  # Roll back any changes if an error occurred during inserts
-    except Exception as e:
-        print(f"An unexpected error occurred during processing: {e}", file=sys.stderr)
+        summary = insert_entries(conn, iter_entries(args.input_dir))
+        total = conn.execute("SELECT COUNT(*) FROM entries").fetchone()[0]
     finally:
-        # Ensure the database connection is closed
-        if conn:
-            conn.close()
-            print("Database connection closed.")
+        conn.close()
+
+    inserted, updated, numbered, skipped = summary
+    print(f"Database path: {args.db_path}")
+    print(f"Entries: {total}")
+    print(f"Inserted: {inserted}, updated: {updated}, numbered: {numbered}, skipped: {skipped}")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
