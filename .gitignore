@@ -13,11 +13,24 @@
 # But DO NOT ignore the following:
 !/.gitignore
 !/create_db.py
-!/data//data/*
+!/scripts/
+!/scripts/*
+!/docs/
+!/docs/*
+!/data/
+!/data/*
 !/data/source/
 !/data/source/Sabdakosh10th.pdf
 !/data/source/SanketaChinha.pdf
 !/data/ocr_results/*/*.txt
+!/data/dictionaries/
+!/data/dictionaries/*/
+!/data/dictionaries/*/metadata.json
+!/data/dictionaries/*/entries/
+!/data/dictionaries/*/entries/*/
+!/data/dictionaries/*/entries/*/*.txt
+/data/*.db
+/data/*.db-*
 
 !uv.lock
 !pyproject.toml
