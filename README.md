@@ -59,6 +59,8 @@ the following core fields:
 **Notes:**
 
 - The script parses reviewed `.txt` files using ` --- ` as the field separator.
+- Files are processed in numeric page order so duplicate handling follows the
+  original dictionary sequence.
 - Consecutive duplicate headwords are treated as likely page-boundary
   continuations; the longer definition is kept.
 - Non-consecutive duplicate headwords are numbered with Devanagari numerals.

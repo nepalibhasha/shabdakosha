@@ -43,17 +43,18 @@ def parse_entry(line: str) -> tuple[str, str | None, str] | None:
     line = line.strip()
     if not line:
         return None
-    parts = line.split(ENTRY_SEP)
-    if len(parts) >= 3:
-        word = parts[0].strip()
-        pos = parts[1].strip() or None
-        definition = ENTRY_SEP.join(parts[2:]).strip()
-    elif len(parts) == 2:
-        word = parts[0].strip()
-        pos = None
-        definition = parts[1].strip()
+    match = re.match(r"(.+?)\s+---(.+?)---(.+)", line)
+    if match:
+        word = match.group(1).strip()
+        pos = match.group(2).strip() or None
+        definition = match.group(3).strip()
     else:
-        return None
+        match = re.match(r"(.+?)\s+---(.+)", line)
+        if not match:
+            return None
+        word = match.group(1).strip()
+        pos = None
+        definition = match.group(2).strip()
     if not word or not definition:
         return None
     return trim_headword(word), pos, definition
