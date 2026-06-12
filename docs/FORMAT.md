@@ -1,6 +1,6 @@
 # Dictionary Text Format
 
-Reviewed dictionary files live under:
+Reviewed dictionary text files live under:
 
 ```text
 data/dictionaries/<dictionary-id>/entries/
@@ -26,3 +26,8 @@ If no part-of-speech or etymology is visible, leave the middle field empty:
 
 Do not include extraction markers, markdown fences, or comments in reviewed
 entry files.
+
+Some dictionaries may use a structured source instead of reviewed text files.
+For example, `kosha-pragya` keeps its upstream JSON gzip artifact under
+`data/dictionaries/kosha-pragya/source/`; do not edit that compressed source
+directly.

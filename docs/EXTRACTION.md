@@ -1,7 +1,10 @@
-# Extraction Notes
+# Source And Extraction Notes
 
-The maintained text files are reviewed corpus files. Contributors normally edit
-those files directly rather than rerunning extraction.
+`shabdakosha` keeps each dictionary source in the shape best suited to its
+provenance and review workflow. Some dictionaries are maintained as reviewed
+text files; others keep a structured source artifact.
+
+## kosha-brihat
 
 The original extraction method for `kosha-brihat` used two-page PDF chunks and a
 Gemini prompt that:
@@ -17,7 +20,19 @@ Gemini prompt that:
 The reproducibility script is:
 
 ```bash
-python scripts/extract_gemini.py path/to/pdf-chunks --project YOUR_PROJECT
+python3 scripts/extract_gemini.py path/to/pdf-chunks --project YOUR_PROJECT
 ```
 
 It expects Google Vertex AI credentials in the local environment.
+
+## kosha-pragya
+
+`kosha-pragya` is imported from the compressed JSON source at:
+
+```text
+data/dictionaries/kosha-pragya/source/sabdakosh.json.gz
+```
+
+Its `metadata.json` records the upstream repository, download URL, checksum, and
+the local naming note. The gzip file should be treated as a source artifact, not
+as review text. Do not edit it directly.
