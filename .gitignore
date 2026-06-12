@@ -13,6 +13,10 @@
 # But DO NOT ignore the following:
 !/.gitignore
 !/create_db.py
+!/shabdakosha/
+!/shabdakosha/**
+/shabdakosha/**/__pycache__/
+/shabdakosha/**/*.pyc
 !/scripts/
 !/scripts/*
 !/docs/
@@ -28,6 +32,8 @@
 !/data/dictionaries/*/entries/
 !/data/dictionaries/*/entries/*/
 !/data/dictionaries/*/entries/*/*.txt
+!/data/dictionaries/*/source/
+!/data/dictionaries/*/source/*.json.gz
 /data/*.db
 /data/*.db-*
 

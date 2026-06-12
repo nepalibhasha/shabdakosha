@@ -1,0 +1,30 @@
+{
+  "id": "kosha-pragya",
+  "name": "प्रज्ञा नेपाली बृहत् शब्दकोश",
+  "name_en": "Pragya Nepali Brihat Shabdakosh",
+  "source_language": "nepali",
+  "target_language": "nepali",
+  "script": "devanagari",
+  "local_name_note": "This project uses the id kosha-pragya to distinguish this source from kosha-brihat. The upstream repository names the dataset Nepali Brihat Sabdakosh.",
+  "source": {
+    "type": "structured-json-gzip",
+    "file": "data/dictionaries/kosha-pragya/source/sabdakosh.json.gz",
+    "upstream_repository": "https://github.com/bikashpadhikari/nepali-brihat-sabdakosh-json",
+    "upstream_title": "Nepali Brihat Sabdakosh",
+    "download_url": "https://raw.githubusercontent.com/bikashpadhikari/nepali-brihat-sabdakosh-json/main/sabdakosh.json.gz",
+    "imported_at": "2026-06-12",
+    "checksum": {
+      "algorithm": "sha256",
+      "value": "069e545570039de3260bee73a2610992feb154261361c6940f78e2e64eba03fb"
+    },
+    "notes": [
+      "The compressed JSON file is treated as the source artifact for this dictionary.",
+      "Do not edit the compressed source file directly. Add reviewable patch data if corrections are needed.",
+      "The upstream README describes the data as extracted from version 19 of the np.com.naya.sabdakosh Android app.",
+      "The upstream README says code is MIT licensed but dictionary data licensing is uncertain."
+    ]
+  },
+  "format": {
+    "entry_shape": "JSON objects with word and definitions fields"
+  }
+}
