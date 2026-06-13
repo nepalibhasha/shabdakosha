@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+
+{% block title %}{{ word.base_word }}{% endblock %}
+
+{% block content %}
+  <section class="section-block">
+    <div class="section-heading">
+      <h1>{{ word.base_word }}</h1>
+      <p>{{ word.entries|length|format_count }} entries across {{ word.dictionary_ids|length|format_count }} dictionaries.</p>
+    </div>
+    <div class="compare-list">
+      {% for entry in word.entries %}
+        <article class="compare-item">
+          <div class="compare-head">
+            <div>
+              <p class="overline">{{ entry.dictionary_id }}</p>
+              <h2><a href="/entry/{{ entry.dictionary_id }}/{{ entry.word|url_quote }}">{{ entry.word }}</a></h2>
+            </div>
+            {% if entry.variant_number %}<span class="badge">variant {{ entry.variant_number }}</span>{% endif %}
+          </div>
+          {% if entry.part_of_speech %}<p class="pos-line">{{ entry.part_of_speech }}</p>{% endif %}
+          <p>{{ entry.definition|link_definition }}</p>
+          <footer>{{ entry.source_file }}</footer>
+        </article>
+      {% endfor %}
+    </div>
+  </section>
+{% endblock %}

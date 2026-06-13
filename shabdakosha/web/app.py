@@ -4,15 +4,18 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sqlite3
 import threading
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote
 
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from markupsafe import Markup, escape
 
 from shabdakosha.build_db import build_database
 
@@ -22,6 +25,7 @@ PROJECT_ROOT = PACKAGE_DIR.parents[1]
 DEFAULT_DB_PATH = PROJECT_ROOT / "data" / "dictionary.db"
 DEFAULT_DATA_DIR = PROJECT_ROOT / "data" / "dictionaries"
 DB_BUILD_LOCK = threading.Lock()
+DEVANAGARI_TOKEN_RE = re.compile(r"[\u0900-\u097F][\u0900-\u097F\u200c\u200d]*")
 
 
 def db_path() -> Path:
@@ -97,6 +101,31 @@ def summarize(value: str | None, limit: int = 220) -> str:
     if len(text) <= limit:
         return text
     return text[: limit - 1].rstrip() + "…"
+
+
+def url_quote(value: str | None) -> str:
+    if not value:
+        return ""
+    return quote(value, safe="")
+
+
+def link_definition(value: str | None) -> Markup:
+    if not value:
+        return Markup("")
+
+    parts: list[str] = []
+    position = 0
+    for match in DEVANAGARI_TOKEN_RE.finditer(value):
+        parts.append(str(escape(value[position : match.start()])))
+        token = match.group(0).rstrip("।॥")
+        suffix = match.group(0)[len(token) :]
+        if token:
+            href = f"/word/{url_quote(token)}"
+            parts.append(f'<a class="definition-token" href="{href}">{escape(token)}</a>')
+        parts.append(str(escape(suffix)))
+        position = match.end()
+    parts.append(str(escape(value[position:])))
+    return Markup("".join(parts))
 
 
 def get_dictionaries() -> list[dict[str, Any]]:
@@ -188,6 +217,34 @@ def search_entries(
     return [row_to_dict(row) for row in rows]
 
 
+def grouped_search(
+    query: str,
+    dictionary_id: str | None = None,
+    limit: int = 160,
+) -> list[dict[str, Any]]:
+    rows = search_entries(query, dictionary_id=dictionary_id, limit=limit)
+    groups: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        group = groups.setdefault(
+            row["base_word"],
+            {
+                "base_word": row["base_word"],
+                "rank": row["rank"],
+                "dictionaries": set(),
+                "entries": [],
+            },
+        )
+        group["rank"] = min(group["rank"], row["rank"])
+        group["dictionaries"].add(row["dictionary_id"])
+        group["entries"].append(row)
+
+    grouped = list(groups.values())
+    for group in grouped:
+        group["dictionaries"] = sorted(group["dictionaries"])
+    grouped.sort(key=lambda item: (item["rank"], item["base_word"]))
+    return grouped
+
+
 def get_entry(dictionary_id: str, word: str) -> dict[str, Any]:
     with connection() as conn:
         row = conn.execute(
@@ -224,12 +281,66 @@ def compare_base_word(base_word: str) -> list[dict[str, Any]]:
     return entries
 
 
+def get_word_groups(base_word: str) -> dict[str, Any]:
+    entries = compare_base_word(base_word)
+    by_dictionary: dict[str, list[dict[str, Any]]] = {}
+    for entry in entries:
+        by_dictionary.setdefault(entry["dictionary_id"], []).append(entry)
+    return {
+        "base_word": base_word,
+        "entries": entries,
+        "by_dictionary": by_dictionary,
+        "dictionary_ids": sorted(by_dictionary),
+    }
+
+
+def suggest_words(query: str, dictionary_id: str | None = None, limit: int = 12) -> list[dict[str, Any]]:
+    text = query.strip()
+    if not text:
+        return []
+
+    filters = []
+    params: list[Any] = [text, f"{text}%", f"{text}%"]
+    if dictionary_id:
+        filters.append("dictionary_id = ?")
+    where = " AND ".join(["(base_word LIKE ? OR word LIKE ?)"] + filters)
+    if dictionary_id:
+        params.extend([dictionary_id])
+    params.append(limit)
+
+    with connection() as conn:
+        rows = conn.execute(
+            f"""
+            SELECT
+                base_word,
+                MIN(CASE WHEN base_word = ? THEN 0 ELSE 1 END) AS rank,
+                COUNT(*) AS entry_count,
+                GROUP_CONCAT(DISTINCT dictionary_id) AS dictionary_ids
+            FROM entries
+            WHERE {where}
+            GROUP BY base_word
+            ORDER BY rank, base_word
+            LIMIT ?
+            """,
+            params,
+        ).fetchall()
+
+    suggestions = []
+    for row in rows:
+        item = row_to_dict(row)
+        item["dictionary_ids"] = sorted((item.get("dictionary_ids") or "").split(","))
+        suggestions.append(item)
+    return suggestions
+
+
 def create_app() -> FastAPI:
     app = FastAPI(title="Shabdakosha Resource Browser")
     templates = Jinja2Templates(directory=str(PACKAGE_DIR / "templates"))
     templates.env.filters["parse_json"] = parse_json
     templates.env.filters["format_count"] = format_count
     templates.env.filters["summarize"] = summarize
+    templates.env.filters["url_quote"] = url_quote
+    templates.env.filters["link_definition"] = link_definition
     app.mount("/static", StaticFiles(directory=str(PACKAGE_DIR / "static")), name="static")
 
     @app.get("/health")
@@ -254,14 +365,30 @@ def create_app() -> FastAPI:
         q: str = "",
         dictionary_id: str | None = Query(default=None),
     ) -> HTMLResponse:
+        query = q.strip()
         return templates.TemplateResponse(
             request,
             "search.html",
             {
-                "q": q.strip(),
+                "q": query,
                 "dictionary_id": dictionary_id,
                 "dictionaries": get_dictionaries(),
-                "results": search_entries(q, dictionary_id=dictionary_id),
+                "groups": grouped_search(query, dictionary_id=dictionary_id),
+            },
+        )
+
+    @app.get("/api/suggest")
+    def suggest(q: str = "", dictionary_id: str | None = Query(default=None)) -> dict[str, Any]:
+        return {"suggestions": suggest_words(q, dictionary_id=dictionary_id)}
+
+    @app.get("/word/{base_word:path}", response_class=HTMLResponse)
+    def word(request: Request, base_word: str) -> HTMLResponse:
+        return templates.TemplateResponse(
+            request,
+            "word.html",
+            {
+                "word": get_word_groups(base_word),
+                "dictionaries": get_dictionaries(),
             },
         )
 
