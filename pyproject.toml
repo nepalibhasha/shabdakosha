@@ -4,4 +4,8 @@ version = "0.1.0"
 description = "प्रज्ञा प्रतिष्ठानबाट प्रकाशित नेपाली बृहत शब्दकोश(१०औँ संस्करण)"
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "fastapi>=0.115.0",
+    "jinja2>=3.1.0",
+    "uvicorn[standard]>=0.30.0",
+]

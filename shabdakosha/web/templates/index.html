@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+
+{% block title %}Shabdakosha Resource Browser{% endblock %}
+
+{% block content %}
+  <h1>Shabdakosha Resource Browser</h1>
+  <p>{{ stats.entry_count }} entries across {{ stats.dictionary_count }} dictionaries.</p>
+  <ul>
+    {% for dictionary in dictionaries %}
+      <li>{{ dictionary.id }}: {{ dictionary.entry_count }} entries</li>
+    {% endfor %}
+  </ul>
+{% endblock %}

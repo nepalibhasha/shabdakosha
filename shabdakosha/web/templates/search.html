@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+
+{% block title %}Search{% endblock %}
+
+{% block content %}
+  <h1>Search</h1>
+  {% if q %}
+    <p>{{ results|length }} results for {{ q }}</p>
+    <ul>
+      {% for result in results %}
+        <li>
+          <a href="/entry/{{ result.dictionary_id }}/{{ result.word }}">{{ result.word }}</a>
+          <span>{{ result.dictionary_id }}</span>
+        </li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+{% endblock %}

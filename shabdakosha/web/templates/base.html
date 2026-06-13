@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="ne">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}Shabdakosha{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='/app.css') }}">
+  </head>
+  <body>
+    <header>
+      <a href="/">Shabdakosha</a>
+      <form action="/search" method="get">
+        <input name="q" value="{{ q or '' }}" placeholder="Search headwords">
+        <button type="submit">Search</button>
+      </form>
+    </header>
+    <main>
+      {% block content %}{% endblock %}
+    </main>
+  </body>
+</html>
