@@ -7,14 +7,32 @@
     <link rel="stylesheet" href="{{ url_for('static', path='/app.css') }}">
   </head>
   <body>
-    <header>
-      <a href="/">Shabdakosha</a>
-      <form action="/search" method="get">
-        <input name="q" value="{{ q or '' }}" placeholder="Search headwords">
-        <button type="submit">Search</button>
-      </form>
+    <header class="site-header">
+      <div class="header-inner">
+        <a class="brand" href="/">
+          <span class="brand-mark">श</span>
+          <span>
+            <strong>Shabdakosha</strong>
+            <small>Nepali dictionary source browser</small>
+          </span>
+        </a>
+        <form class="search-shell" action="/search" method="get">
+          <label class="sr-only" for="global-search">Search headwords</label>
+          <input id="global-search" name="q" value="{{ q or '' }}" placeholder="Search headwords or base words">
+          <label class="sr-only" for="dictionary-filter">Dictionary</label>
+          <select id="dictionary-filter" name="dictionary_id">
+            <option value="">All dictionaries</option>
+            {% for dictionary in dictionaries or [] %}
+              <option value="{{ dictionary.id }}" {% if dictionary_id == dictionary.id %}selected{% endif %}>
+                {{ dictionary.id }}
+              </option>
+            {% endfor %}
+          </select>
+          <button type="submit">Search</button>
+        </form>
+      </div>
     </header>
-    <main>
+    <main class="page">
       {% block content %}{% endblock %}
     </main>
   </body>

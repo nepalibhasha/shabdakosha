@@ -57,6 +57,21 @@ def parse_json(value: str | None) -> Any:
         return None
 
 
+def format_count(value: int | None) -> str:
+    if value is None:
+        return "0"
+    return f"{value:,}"
+
+
+def summarize(value: str | None, limit: int = 220) -> str:
+    if not value:
+        return ""
+    text = " ".join(value.split())
+    if len(text) <= limit:
+        return text
+    return text[: limit - 1].rstrip() + "…"
+
+
 def get_dictionaries() -> list[dict[str, Any]]:
     with connection() as conn:
         rows = conn.execute(
@@ -186,6 +201,8 @@ def create_app() -> FastAPI:
     app = FastAPI(title="Shabdakosha Resource Browser")
     templates = Jinja2Templates(directory=str(PACKAGE_DIR / "templates"))
     templates.env.filters["parse_json"] = parse_json
+    templates.env.filters["format_count"] = format_count
+    templates.env.filters["summarize"] = summarize
     app.mount("/static", StaticFiles(directory=str(PACKAGE_DIR / "static")), name="static")
 
     @app.get("/health")

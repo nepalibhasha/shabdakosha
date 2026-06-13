@@ -3,9 +3,55 @@
 {% block title %}{{ entry.word }}{% endblock %}
 
 {% block content %}
-  <h1>{{ entry.word }}</h1>
-  <p>{{ entry.dictionary_id }} · {{ entry.source_file }}</p>
-  {% if entry.part_of_speech %}<p>{{ entry.part_of_speech }}</p>{% endif %}
-  <p>{{ entry.definition }}</p>
-  <p><a href="/compare/{{ entry.base_word }}">Compare {{ entry.base_word }}</a></p>
+  <section class="entry-layout">
+    <article class="entry-primary">
+      <div class="entry-heading">
+        <div>
+          <p class="overline">{{ entry.dictionary_id }}</p>
+          <h1>{{ entry.word }}</h1>
+        </div>
+        <a class="button-secondary" href="/compare/{{ entry.base_word|urlencode }}">Compare base word</a>
+      </div>
+
+      {% if entry.part_of_speech %}
+        <p class="pos-line">{{ entry.part_of_speech }}</p>
+      {% endif %}
+
+      <section class="definition-block">
+        <h2>Definition</h2>
+        <p>{{ entry.definition }}</p>
+      </section>
+
+      {% if entry.split_definitions %}
+        <section class="definition-block">
+          <h2>Split definitions</h2>
+          <ol class="sense-list">
+            {% for sense in entry.split_definitions %}
+              <li>
+                {% if sense.number %}<span>{{ sense.number }}</span>{% endif %}
+                <p>{{ sense.text }}</p>
+              </li>
+            {% endfor %}
+          </ol>
+        </section>
+      {% endif %}
+    </article>
+
+    <aside class="entry-sidebar">
+      <dl>
+        <div>
+          <dt>Base word</dt>
+          <dd>{{ entry.base_word }}</dd>
+        </div>
+        <div>
+          <dt>Variant</dt>
+          <dd>{{ entry.variant_number or "None" }}</dd>
+        </div>
+        <div>
+          <dt>Source reference</dt>
+          <dd><code>{{ entry.source_file }}</code></dd>
+        </div>
+      </dl>
+    </aside>
+  </section>
 {% endblock %}

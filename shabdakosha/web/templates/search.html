@@ -3,16 +3,52 @@
 {% block title %}Search{% endblock %}
 
 {% block content %}
-  <h1>Search</h1>
-  {% if q %}
-    <p>{{ results|length }} results for {{ q }}</p>
-    <ul>
-      {% for result in results %}
-        <li>
-          <a href="/entry/{{ result.dictionary_id }}/{{ result.word }}">{{ result.word }}</a>
-          <span>{{ result.dictionary_id }}</span>
-        </li>
-      {% endfor %}
-    </ul>
-  {% endif %}
+  <section class="section-block">
+    <div class="section-heading">
+      <h1>Search</h1>
+      {% if q %}
+        <p>
+          {{ results|length|format_count }} result{% if results|length != 1 %}s{% endif %}
+          for <strong>{{ q }}</strong>
+          {% if dictionary_id %}in <strong>{{ dictionary_id }}</strong>{% endif %}
+        </p>
+      {% else %}
+        <p>Search for an exact headword, base word, prefix, or contained text.</p>
+      {% endif %}
+    </div>
+
+    {% if q and results %}
+      <div class="result-list">
+        {% for result in results %}
+          <article class="result-row">
+            <div class="result-main">
+              <div class="result-title-row">
+                <a class="result-title" href="/entry/{{ result.dictionary_id }}/{{ result.word|urlencode }}">
+                  {{ result.word }}
+                </a>
+                <span class="badge">{{ result.dictionary_id }}</span>
+              </div>
+              <p>{{ result.definition|summarize }}</p>
+              <div class="result-meta">
+                <span>Base: <a href="/compare/{{ result.base_word|urlencode }}">{{ result.base_word }}</a></span>
+                {% if result.part_of_speech %}<span>{{ result.part_of_speech }}</span>{% endif %}
+                <span>{{ result.source_file }}</span>
+              </div>
+            </div>
+            <a class="row-action" href="/compare/{{ result.base_word|urlencode }}">Compare</a>
+          </article>
+        {% endfor %}
+      </div>
+    {% elif q %}
+      <div class="empty-state">
+        <h2>No entries found</h2>
+        <p>Try another spelling or remove the dictionary filter.</p>
+      </div>
+    {% else %}
+      <div class="empty-state">
+        <h2>Start with a headword</h2>
+        <p>Examples: नेपाल, पानी, भाषा.</p>
+      </div>
+    {% endif %}
+  </section>
 {% endblock %}

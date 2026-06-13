@@ -3,11 +3,86 @@
 {% block title %}Shabdakosha Resource Browser{% endblock %}
 
 {% block content %}
-  <h1>Shabdakosha Resource Browser</h1>
-  <p>{{ stats.entry_count }} entries across {{ stats.dictionary_count }} dictionaries.</p>
-  <ul>
-    {% for dictionary in dictionaries %}
-      <li>{{ dictionary.id }}: {{ dictionary.entry_count }} entries</li>
-    {% endfor %}
-  </ul>
+  <section class="intro">
+    <div>
+      <h1>Dictionary source browser</h1>
+      <p>
+        Inspect source metadata and generated entries from the local
+        <code>data/dictionary.db</code> artifact.
+      </p>
+    </div>
+    <dl class="stat-strip">
+      <div>
+        <dt>Dictionaries</dt>
+        <dd>{{ stats.dictionary_count|format_count }}</dd>
+      </div>
+      <div>
+        <dt>Entries</dt>
+        <dd>{{ stats.entry_count|format_count }}</dd>
+      </div>
+      <div>
+        <dt>Base words</dt>
+        <dd>{{ stats.base_word_count|format_count }}</dd>
+      </div>
+    </dl>
+  </section>
+
+  <section class="section-block">
+    <div class="section-heading">
+      <h2>Dictionaries</h2>
+      <p>Each source keeps its own provenance and importer path.</p>
+    </div>
+    <div class="dictionary-grid">
+      {% for dictionary in dictionaries %}
+        {% set metadata = dictionary.metadata or {} %}
+        {% set source = metadata.get("source", {}) %}
+        <article class="dictionary-card">
+          <div class="card-header-row">
+            <div>
+              <h3>{{ dictionary.name }}</h3>
+              <p>{{ dictionary.name_en }}</p>
+            </div>
+            <span class="badge">{{ dictionary.id }}</span>
+          </div>
+          <dl class="metric-row">
+            <div>
+              <dt>Entries</dt>
+              <dd>{{ dictionary.entry_count|format_count }}</dd>
+            </div>
+            <div>
+              <dt>Base words</dt>
+              <dd>{{ dictionary.base_word_count|format_count }}</dd>
+            </div>
+          </dl>
+          <div class="metadata-list">
+            <div>
+              <span>Source type</span>
+              <strong>{{ source.get("type", "unknown") }}</strong>
+            </div>
+            <div>
+              <span>Source file</span>
+              <code>{{ source.get("file", "not recorded") }}</code>
+            </div>
+            {% if source.get("upstream_repository") %}
+              <div>
+                <span>Upstream</span>
+                <a href="{{ source.get('upstream_repository') }}">{{ source.get("upstream_repository") }}</a>
+              </div>
+            {% endif %}
+            {% if source.get("checksum") %}
+              <div>
+                <span>SHA-256</span>
+                <code>{{ source.get("checksum").get("value") }}</code>
+              </div>
+            {% endif %}
+          </div>
+          <form class="inline-search" action="/search" method="get">
+            <input type="hidden" name="dictionary_id" value="{{ dictionary.id }}">
+            <input name="q" placeholder="Search {{ dictionary.id }}">
+            <button type="submit">Search</button>
+          </form>
+        </article>
+      {% endfor %}
+    </div>
+  </section>
 {% endblock %}
