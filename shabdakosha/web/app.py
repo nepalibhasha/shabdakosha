@@ -7,6 +7,7 @@ import os
 import re
 import sqlite3
 import threading
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote
@@ -119,13 +120,27 @@ def link_definition(value: str | None) -> Markup:
         parts.append(str(escape(value[position : match.start()])))
         token = match.group(0).rstrip("।॥")
         suffix = match.group(0)[len(token) :]
-        if token:
+        if token and base_word_exists(token):
             href = f"/word/{url_quote(token)}"
             parts.append(f'<a class="definition-token" href="{href}">{escape(token)}</a>')
+        else:
+            parts.append(str(escape(token)))
         parts.append(str(escape(suffix)))
         position = match.end()
     parts.append(str(escape(value[position:])))
     return Markup("".join(parts))
+
+
+@lru_cache(maxsize=20000)
+def base_word_exists(base_word: str) -> bool:
+    if not base_word:
+        return False
+    with connection() as conn:
+        row = conn.execute(
+            "SELECT 1 FROM entries WHERE base_word = ? LIMIT 1",
+            (base_word,),
+        ).fetchone()
+    return row is not None
 
 
 def get_dictionaries() -> list[dict[str, Any]]:

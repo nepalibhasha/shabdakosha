@@ -4,12 +4,20 @@
 
 {% block content %}
   <section class="intro">
-    <div>
+    <div class="hero-copy">
       <h1>Dictionary source browser</h1>
       <p>
-        Inspect source metadata and generated entries from the local
-        <code>data/dictionary.db</code> artifact.
+        Search once and inspect how a word appears across the generated Brihat
+        and Pragya dictionary artifacts.
       </p>
+      <form class="hero-search" action="/search" method="get" data-autocomplete>
+        <label class="sr-only" for="hero-search">Search headwords</label>
+        <div class="autocomplete-wrap">
+          <input id="hero-search" name="q" placeholder="नेपाल, पानी, भाषा..." autocomplete="off" autofocus>
+          <div class="suggestion-panel" data-suggestions hidden></div>
+        </div>
+        <button type="submit">Search</button>
+      </form>
     </div>
     <dl class="stat-strip">
       <div>

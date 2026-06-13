@@ -18,25 +18,32 @@
     </div>
 
     {% if q and groups %}
-      <div class="result-list">
+      <div class="word-group-list">
         {% for group in groups %}
-          <article class="result-row">
-            <div class="result-main">
-              <div class="result-title-row">
-                <a class="result-title" href="/word/{{ group.base_word|url_quote }}">
-                  {{ group.base_word }}
+          <article class="word-group-card">
+            <header class="word-group-head">
+              <div>
+                <a class="result-title" href="/word/{{ group.base_word|url_quote }}">{{ group.base_word }}</a>
+                <p>{{ group.entries|length|format_count }} generated entries</p>
+              </div>
+              <div class="badge-row">
+                {% for dictionary in group.dictionaries %}
+                  <span class="badge">{{ dictionary }}</span>
+                {% endfor %}
+              </div>
+            </header>
+            <div class="entry-preview-grid">
+              {% for entry in group.entries[:4] %}
+                <a class="entry-preview" href="/entry/{{ entry.dictionary_id }}/{{ entry.word|url_quote }}">
+                  <span>{{ entry.dictionary_id }}</span>
+                  <strong>{{ entry.word }}</strong>
+                  <small>{{ entry.definition|summarize(130) }}</small>
                 </a>
-                <span class="badge">{{ group.dictionaries|join(", ") }}</span>
-              </div>
-              {% set first = group.entries[0] %}
-              <p>{{ first.definition|summarize }}</p>
-              <div class="result-meta">
-                <span>{{ group.entries|length|format_count }} generated entries</span>
-                {% if first.part_of_speech %}<span>{{ first.part_of_speech }}</span>{% endif %}
-                <span>{{ first.source_file }}</span>
-              </div>
+              {% endfor %}
             </div>
-            <a class="row-action" href="/word/{{ group.base_word|url_quote }}">Open</a>
+            <footer class="word-group-actions">
+              <a class="row-action" href="/word/{{ group.base_word|url_quote }}">Open cross-dictionary view</a>
+            </footer>
           </article>
         {% endfor %}
       </div>

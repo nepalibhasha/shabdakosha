@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{% block title %}Shabdakosha{% endblock %}</title>
     <link rel="stylesheet" href="{{ url_for('static', path='/app.css') }}">
+    <script src="{{ url_for('static', path='/app.js') }}" defer></script>
   </head>
   <body>
     <header class="site-header">
@@ -16,9 +17,12 @@
             <small>Nepali dictionary source browser</small>
           </span>
         </a>
-        <form class="search-shell" action="/search" method="get">
+        <form class="search-shell" action="/search" method="get" data-autocomplete>
           <label class="sr-only" for="global-search">Search headwords</label>
-          <input id="global-search" name="q" value="{{ q or '' }}" placeholder="Search headwords or base words">
+          <div class="autocomplete-wrap">
+            <input id="global-search" name="q" value="{{ q or '' }}" placeholder="Search headwords or base words" autocomplete="off">
+            <div class="suggestion-panel" data-suggestions hidden></div>
+          </div>
           <label class="sr-only" for="dictionary-filter">Dictionary</label>
           <select id="dictionary-filter" name="dictionary_id">
             <option value="">All dictionaries</option>

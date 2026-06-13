@@ -6,23 +6,41 @@
   <section class="section-block">
     <div class="section-heading">
       <h1>{{ word.base_word }}</h1>
-      <p>{{ word.entries|length|format_count }} entries across {{ word.dictionary_ids|length|format_count }} dictionaries.</p>
+      <p>
+        {{ word.entries|length|format_count }} generated entr{% if word.entries|length == 1 %}y{% else %}ies{% endif %}
+        across {{ word.dictionary_ids|length|format_count }} dictionar{% if word.dictionary_ids|length == 1 %}y{% else %}ies{% endif %}.
+      </p>
     </div>
-    <div class="compare-list">
-      {% for entry in word.entries %}
-        <article class="compare-item">
-          <div class="compare-head">
-            <div>
-              <p class="overline">{{ entry.dictionary_id }}</p>
-              <h2><a href="/entry/{{ entry.dictionary_id }}/{{ entry.word|url_quote }}">{{ entry.word }}</a></h2>
+
+    {% if word.entries %}
+      <div class="dictionary-result-grid">
+        {% for dictionary_id, entries in word.by_dictionary.items() %}
+          <section class="dictionary-result">
+            <header>
+              <p class="overline">{{ dictionary_id }}</p>
+              <h2>{{ entries|length|format_count }} entr{% if entries|length == 1 %}y{% else %}ies{% endif %}</h2>
+            </header>
+            <div class="compare-list">
+              {% for entry in entries %}
+                <article class="compare-item compact">
+                  <div class="compare-head">
+                    <h3><a href="/entry/{{ entry.dictionary_id }}/{{ entry.word|url_quote }}">{{ entry.word }}</a></h3>
+                    {% if entry.variant_number %}<span class="badge">variant {{ entry.variant_number }}</span>{% endif %}
+                  </div>
+                  {% if entry.part_of_speech %}<p class="pos-line">{{ entry.part_of_speech }}</p>{% endif %}
+                  <p>{{ entry.definition|link_definition }}</p>
+                  <footer>{{ entry.source_file }}</footer>
+                </article>
+              {% endfor %}
             </div>
-            {% if entry.variant_number %}<span class="badge">variant {{ entry.variant_number }}</span>{% endif %}
-          </div>
-          {% if entry.part_of_speech %}<p class="pos-line">{{ entry.part_of_speech }}</p>{% endif %}
-          <p>{{ entry.definition|link_definition }}</p>
-          <footer>{{ entry.source_file }}</footer>
-        </article>
-      {% endfor %}
-    </div>
+          </section>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="empty-state">
+        <h2>No entries found</h2>
+        <p>This base word is not present in the generated database.</p>
+      </div>
+    {% endif %}
   </section>
 {% endblock %}

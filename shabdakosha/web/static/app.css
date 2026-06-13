@@ -163,6 +163,56 @@ button:hover,
   width: min(100%, 46rem);
 }
 
+.autocomplete-wrap {
+  position: relative;
+  min-width: 0;
+}
+
+.autocomplete-wrap input {
+  width: 100%;
+}
+
+.suggestion-panel {
+  position: absolute;
+  top: calc(100% + 0.35rem);
+  right: 0;
+  left: 0;
+  z-index: 30;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.suggestion-item {
+  display: flex;
+  width: 100%;
+  justify-content: flex-start;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text);
+  padding: 0.75rem 0.85rem;
+  text-align: left;
+}
+
+.suggestion-item:hover,
+.suggestion-item[data-active="true"] {
+  background: var(--surface-subtle);
+  color: var(--text);
+}
+
+.suggestion-item strong,
+.suggestion-item small {
+  display: block;
+}
+
+.suggestion-item small {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
 .page {
   padding: 2rem 0 4rem;
 }
@@ -171,8 +221,8 @@ button:hover,
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(18rem, 34rem);
   gap: 2rem;
-  align-items: end;
-  padding: 1.25rem 0 2rem;
+  align-items: center;
+  padding: 2.25rem 0 2.5rem;
 }
 
 .intro h1,
@@ -188,6 +238,24 @@ button:hover,
   margin: 0.75rem 0 0;
   max-width: 42rem;
   color: var(--muted);
+}
+
+.hero-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.hero-search {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.55rem;
+  width: min(100%, 44rem);
+}
+
+.hero-search input {
+  padding: 0.9rem 1rem;
+  font-size: 1.05rem;
 }
 
 .stat-strip {
@@ -353,10 +421,95 @@ dd {
 }
 
 .result-list,
-.compare-list {
+.compare-list,
+.word-group-list {
   display: flex;
   flex-direction: column;
   gap: 0.65rem;
+}
+
+.word-group-list {
+  gap: 1rem;
+}
+
+.word-group-card,
+.dictionary-result {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.word-group-card {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1rem;
+}
+
+.word-group-head {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.word-group-head p {
+  margin: 0.2rem 0 0;
+  color: var(--muted);
+}
+
+.badge-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.35rem;
+}
+
+.entry-preview-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.6rem;
+}
+
+.entry-preview {
+  display: flex;
+  min-height: 7rem;
+  flex-direction: column;
+  gap: 0.25rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-subtle);
+  color: var(--text);
+  padding: 0.75rem;
+  text-decoration: none;
+}
+
+.entry-preview:hover {
+  border-color: var(--accent);
+  text-decoration: none;
+}
+
+.entry-preview span,
+.entry-preview small {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.entry-preview strong {
+  font-size: 1.05rem;
+}
+
+.entry-preview small {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.word-group-actions {
+  display: flex;
+  justify-content: flex-end;
 }
 
 .result-row {
@@ -437,6 +590,17 @@ dd {
   font-size: 1.08rem;
 }
 
+.definition-token {
+  border-bottom: 1px dotted color-mix(in srgb, var(--accent) 55%, transparent);
+  color: var(--accent-strong);
+  text-decoration: none;
+}
+
+.definition-token:hover {
+  border-bottom-style: solid;
+  text-decoration: none;
+}
+
 .sense-list {
   display: flex;
   flex-direction: column;
@@ -475,8 +639,36 @@ dd {
   padding: 1rem;
 }
 
+.compare-item.compact {
+  box-shadow: none;
+}
+
 .compare-item h2 a {
   color: var(--text);
+}
+
+.compare-item h3 {
+  margin: 0;
+  font-size: 1.2rem;
+}
+
+.dictionary-result-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  align-items: start;
+}
+
+.dictionary-result {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1rem;
+}
+
+.dictionary-result header h2 {
+  margin: 0;
+  font-size: 1.1rem;
 }
 
 .compare-item footer {
@@ -496,8 +688,15 @@ dd {
     flex-direction: column;
   }
 
+  .section-heading {
+    align-items: start;
+    flex-direction: column;
+  }
+
   .search-shell,
-  .dictionary-grid {
+  .dictionary-grid,
+  .entry-preview-grid,
+  .dictionary-result-grid {
     grid-template-columns: 1fr;
   }
 
@@ -528,7 +727,18 @@ dd {
 
   .card-header-row,
   .entry-heading,
-  .compare-head {
+  .compare-head,
+  .word-group-head {
     flex-direction: column;
+  }
+
+  .hero-search,
+  .inline-search {
+    grid-template-columns: 1fr;
+  }
+
+  .badge-row,
+  .word-group-actions {
+    justify-content: flex-start;
   }
 }
