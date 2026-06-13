@@ -53,6 +53,37 @@ Validation failures indicate repository-shape or generated-artifact problems.
 Corpus-quality issues in reviewed text are reported as warnings by default; use
 `python3 scripts/validate.py --strict` when you want warnings to fail.
 
+### Running the Resource Browser
+
+The repository includes a read-only web browser for inspecting dictionary
+metadata, generated entries, source references, and cross-dictionary base-word
+matches.
+
+Run it locally:
+
+```bash
+uv run uvicorn shabdakosha.web.app:app --reload --host 127.0.0.1 --port 8000
+```
+
+Then open:
+
+```text
+http://127.0.0.1:8000
+```
+
+If `data/dictionary.db` is missing, the browser builds it from
+`data/dictionaries/` before serving requests.
+
+Run it with Docker:
+
+```bash
+docker compose up --build
+```
+
+The browser is intentionally separate from product applications. It is for
+inspecting and validating this repository's dictionary sources and generated
+artifacts.
+
 ## Database Structure
 
 The `create_db.py` script generates a SQLite database file located at

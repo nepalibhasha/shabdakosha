@@ -12,7 +12,10 @@
 
 # But DO NOT ignore the following:
 !/.gitignore
+!/.dockerignore
 !/create_db.py
+!/Dockerfile
+!/compose.yaml
 !/shabdakosha/
 !/shabdakosha/**
 /shabdakosha/**/__pycache__/

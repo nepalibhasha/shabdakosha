@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import sqlite3
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -20,6 +21,7 @@ PACKAGE_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = PACKAGE_DIR.parents[1]
 DEFAULT_DB_PATH = PROJECT_ROOT / "data" / "dictionary.db"
 DEFAULT_DATA_DIR = PROJECT_ROOT / "data" / "dictionaries"
+DB_BUILD_LOCK = threading.Lock()
 
 
 def db_path() -> Path:
@@ -32,9 +34,34 @@ def data_dir() -> Path:
 
 def ensure_database() -> None:
     path = db_path()
-    if path.exists():
+    if database_ready(path):
         return
-    build_database(data_dir(), path)
+    with DB_BUILD_LOCK:
+        if database_ready(path):
+            return
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp_path = path.with_suffix(path.suffix + ".tmp")
+        if tmp_path.exists():
+            tmp_path.unlink()
+        build_database(data_dir(), tmp_path)
+        tmp_path.replace(path)
+
+
+def database_ready(path: Path) -> bool:
+    if not path.exists():
+        return False
+    try:
+        with sqlite3.connect(path) as conn:
+            rows = conn.execute(
+                """
+                SELECT name
+                FROM sqlite_master
+                WHERE type = 'table' AND name IN ('dictionaries', 'entries')
+                """
+            ).fetchall()
+    except sqlite3.Error:
+        return False
+    return {row[0] for row in rows} == {"dictionaries", "entries"}
 
 
 def connection() -> sqlite3.Connection:

@@ -1,0 +1,11 @@
+.git
+.venv
+__pycache__/
+**/__pycache__/
+*.pyc
+.DS_Store
+data/*.db
+data/*.db-*
+data/build/
+.pytest_cache/
+.ruff_cache/
