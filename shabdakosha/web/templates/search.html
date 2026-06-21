@@ -8,7 +8,7 @@
       <h1>Search</h1>
       {% if q %}
         <p>
-          {{ groups|length|format_count }} word group{% if groups|length != 1 %}s{% endif %}
+          {{ groups|length|format_count }} lookup result{% if groups|length != 1 %}s{% endif %}
           for <strong>{{ q }}</strong>
           {% if dictionary_id %}in <strong>{{ dictionary_id }}</strong>{% endif %}
         </p>
@@ -23,8 +23,8 @@
           <article class="word-group-card">
             <header class="word-group-head">
               <div>
-                <a class="result-title" href="/word/{{ group.base_word|url_quote }}">{{ group.base_word }}</a>
-                <p>{{ group.entries|length|format_count }} generated entries</p>
+                <a class="result-title" href="/word/{{ group.lookup_word|url_quote }}">{{ group.lookup_word }}</a>
+                <p>{{ group.entries|length|format_count }} dictionary entr{% if group.entries|length == 1 %}y{% else %}ies{% endif %}</p>
               </div>
               <div class="badge-row">
                 {% for dictionary in group.dictionaries %}
@@ -45,7 +45,7 @@
               {% endfor %}
             </div>
             <footer class="word-group-actions">
-              <a class="row-action" href="/word/{{ group.base_word|url_quote }}">Open cross-dictionary view</a>
+              <a class="row-action" href="/word/{{ group.lookup_word|url_quote }}">Open lookup view</a>
             </footer>
           </article>
         {% endfor %}

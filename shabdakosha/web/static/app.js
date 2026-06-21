@@ -18,7 +18,7 @@ function setupAutocomplete(form) {
   function selectItem(index) {
     const item = items[index];
     if (!item) return;
-    window.location.href = `/word/${encodeURIComponent(item.base_word)}`;
+    window.location.href = `/word/${encodeURIComponent(item.word || item.base_word)}`;
   }
 
   function render(suggestions) {
@@ -31,11 +31,14 @@ function setupAutocomplete(form) {
     panel.innerHTML = suggestions
       .map((item, index) => {
         const dictionaries = item.dictionary_ids.join(", ");
+        const display = item.display_headword && item.display_headword !== item.word
+          ? ` · source: ${item.display_headword}`
+          : "";
         return `
           <button class="suggestion-item" type="button" data-index="${index}">
             <span>
-              <strong>${escapeHtml(item.base_word)}</strong>
-              <small>${escapeHtml(dictionaries)} · ${item.entry_count} entries</small>
+              <strong>${escapeHtml(item.word || item.base_word)}</strong>
+              <small>${escapeHtml(dictionaries)} · ${item.entry_count} entries${escapeHtml(display)}</small>
             </span>
           </button>
         `;

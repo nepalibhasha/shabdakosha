@@ -27,6 +27,32 @@ DEFAULT_DB_PATH = PROJECT_ROOT / "data" / "dictionary.db"
 DEFAULT_DATA_DIR = PROJECT_ROOT / "data" / "dictionaries"
 DB_BUILD_LOCK = threading.Lock()
 DEVANAGARI_TOKEN_RE = re.compile(r"[\u0900-\u097F][\u0900-\u097F\u200c\u200d]*")
+DEFINITION_LINK_STOPWORDS = {
+    "अनि",
+    "अर्थात्",
+    "आदि",
+    "आदिका",
+    "आदिको",
+    "आदिलाई",
+    "आदिले",
+    "कि",
+    "को",
+    "का",
+    "की",
+    "मा",
+    "र",
+    "वा",
+    "ले",
+    "लाई",
+    "बाट",
+    "भई",
+    "भएको",
+    "भएका",
+    "भन्ने",
+    "पनि",
+    "प्रायः",
+    "जस्तो",
+}
 
 
 def db_path() -> Path:
@@ -120,7 +146,7 @@ def link_definition(value: str | None) -> Markup:
         parts.append(str(escape(value[position : match.start()])))
         token = match.group(0).rstrip("।॥")
         suffix = match.group(0)[len(token) :]
-        if token and base_word_exists(token):
+        if should_link_definition_token(token):
             href = f"/word/{url_quote(token)}"
             parts.append(f'<a class="definition-token" href="{href}">{escape(token)}</a>')
         else:
@@ -132,15 +158,21 @@ def link_definition(value: str | None) -> Markup:
 
 
 @lru_cache(maxsize=20000)
-def base_word_exists(base_word: str) -> bool:
-    if not base_word:
+def lookup_word_exists(word: str) -> bool:
+    if not word:
         return False
     with connection() as conn:
         row = conn.execute(
-            "SELECT 1 FROM entries WHERE base_word = ? LIMIT 1",
-            (base_word,),
+            "SELECT 1 FROM entries WHERE word = ? LIMIT 1",
+            (word,),
         ).fetchone()
     return row is not None
+
+
+def should_link_definition_token(token: str) -> bool:
+    if len(token) < 2 or token in DEFINITION_LINK_STOPWORDS:
+        return False
+    return lookup_word_exists(token)
 
 
 def get_dictionaries() -> list[dict[str, Any]]:
@@ -238,15 +270,22 @@ def search_entries(
 def grouped_search(
     query: str,
     dictionary_id: str | None = None,
-    limit: int = 160,
+    limit: int = 90,
 ) -> list[dict[str, Any]]:
+    text = query.strip()
     rows = search_entries(query, dictionary_id=dictionary_id, limit=limit)
     groups: dict[str, dict[str, Any]] = {}
     for row in rows:
+        lookup_word = (
+            row["base_word"]
+            if row["base_word"] == text and row["word"] != text
+            else row["word"]
+        )
         group = groups.setdefault(
-            row["base_word"],
+            lookup_word,
             {
-                "base_word": row["base_word"],
+                "lookup_word": lookup_word,
+                "base_word": lookup_word,
                 "rank": row["rank"],
                 "dictionaries": set(),
                 "entries": [],
@@ -259,7 +298,7 @@ def grouped_search(
     grouped = list(groups.values())
     for group in grouped:
         group["dictionaries"] = sorted(group["dictionaries"])
-    grouped.sort(key=lambda item: (item["rank"], item["base_word"]))
+    grouped.sort(key=lambda item: (item["rank"], item["lookup_word"]))
     return grouped
 
 
@@ -281,17 +320,22 @@ def get_entry(dictionary_id: str, word: str) -> dict[str, Any]:
     return entry
 
 
-def compare_base_word(base_word: str) -> list[dict[str, Any]]:
+def compare_lookup_word(lookup_word: str) -> list[dict[str, Any]]:
     with connection() as conn:
         rows = conn.execute(
             """
             SELECT e.*, s.display_headword
             FROM entries e
             JOIN source_entries s ON s.id = e.source_entry_id
-            WHERE e.base_word = ?
-            ORDER BY e.dictionary_id, e.variant_number IS NOT NULL, e.variant_number, e.word
+            WHERE e.word = ? OR e.base_word = ?
+            ORDER BY
+                CASE WHEN e.word = ? THEN 0 ELSE 1 END,
+                e.dictionary_id,
+                e.variant_number IS NOT NULL,
+                e.variant_number,
+                e.word
             """,
-            (base_word,),
+            (lookup_word, lookup_word, lookup_word),
         ).fetchall()
     entries = []
     for row in rows:
@@ -301,13 +345,14 @@ def compare_base_word(base_word: str) -> list[dict[str, Any]]:
     return entries
 
 
-def get_word_groups(base_word: str) -> dict[str, Any]:
-    entries = compare_base_word(base_word)
+def get_word_groups(lookup_word: str) -> dict[str, Any]:
+    entries = compare_lookup_word(lookup_word)
     by_dictionary: dict[str, list[dict[str, Any]]] = {}
     for entry in entries:
         by_dictionary.setdefault(entry["dictionary_id"], []).append(entry)
     return {
-        "base_word": base_word,
+        "base_word": lookup_word,
+        "lookup_word": lookup_word,
         "entries": entries,
         "by_dictionary": by_dictionary,
         "dictionary_ids": sorted(by_dictionary),
@@ -320,29 +365,37 @@ def suggest_words(query: str, dictionary_id: str | None = None, limit: int = 12)
         return []
 
     filters = []
-    params: list[Any] = [text, f"{text}%", f"{text}%"]
+    rank_params: list[Any] = [text, text, f"{text}%"]
+    match_params: list[Any] = [text, text, f"{text}%", f"{text}%"]
+    filter_params: list[Any] = []
     if dictionary_id:
-        filters.append("dictionary_id = ?")
-    where = " AND ".join(["(base_word LIKE ? OR word LIKE ?)"] + filters)
-    if dictionary_id:
-        params.extend([dictionary_id])
-    params.append(limit)
+        filters.append("e.dictionary_id = ?")
+        filter_params.append(dictionary_id)
+    where = " AND ".join(["(e.word = ? OR e.base_word = ? OR e.word LIKE ? OR e.base_word LIKE ?)"] + filters)
 
     with connection() as conn:
         rows = conn.execute(
             f"""
             SELECT
-                base_word,
-                MIN(CASE WHEN base_word = ? THEN 0 ELSE 1 END) AS rank,
+                e.word,
+                MIN(e.base_word) AS base_word,
+                MIN(s.display_headword) AS display_headword,
+                MIN(CASE
+                    WHEN e.word = ? THEN 0
+                    WHEN e.base_word = ? THEN 1
+                    WHEN e.word LIKE ? THEN 2
+                    ELSE 3
+                END) AS rank,
                 COUNT(*) AS entry_count,
-                GROUP_CONCAT(DISTINCT dictionary_id) AS dictionary_ids
-            FROM entries
+                GROUP_CONCAT(DISTINCT e.dictionary_id) AS dictionary_ids
+            FROM entries e
+            JOIN source_entries s ON s.id = e.source_entry_id
             WHERE {where}
-            GROUP BY base_word
-            ORDER BY rank, base_word
+            GROUP BY e.word
+            ORDER BY rank, e.word
             LIMIT ?
             """,
-            params,
+            rank_params + match_params + filter_params + [limit],
         ).fetchall()
 
     suggestions = []
@@ -430,7 +483,7 @@ def create_app() -> FastAPI:
             "compare.html",
             {
                 "base_word": base_word,
-                "entries": compare_base_word(base_word),
+                "entries": compare_lookup_word(base_word),
                 "dictionaries": get_dictionaries(),
             },
         )

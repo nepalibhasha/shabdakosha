@@ -13,7 +13,7 @@
             <p class="pos-line">Lookup headword: {{ entry.word }}</p>
           {% endif %}
         </div>
-        <a class="button-secondary" href="/compare/{{ entry.base_word|urlencode }}">Compare base word</a>
+        <a class="button-secondary" href="/compare/{{ entry.base_word|url_quote }}">Compare base word</a>
       </div>
 
       {% if entry.part_of_speech %}
@@ -30,7 +30,7 @@
           <h2>Split definitions</h2>
           <ol class="sense-list">
             {% for sense in entry.split_definitions %}
-              <li>
+              <li class="{% if not sense.number %}sense-without-number{% endif %}">
                 {% if sense.number %}<span>{{ sense.number }}</span>{% endif %}
                 <p>{{ sense.text|link_definition }}</p>
               </li>

@@ -6,7 +6,7 @@
   <section class="section-block">
     <div class="section-heading">
       <h1>Compare {{ base_word }}</h1>
-      <p>{{ entries|length|format_count }} generated entr{% if entries|length == 1 %}y{% else %}ies{% endif %} across dictionaries.</p>
+      <p>{{ entries|length|format_count }} dictionary entr{% if entries|length == 1 %}y{% else %}ies{% endif %} across dictionaries.</p>
     </div>
 
     {% if entries %}
@@ -17,11 +17,14 @@
               <div>
                 <p class="overline">{{ entry.dictionary_id }}</p>
                 <h2>
-                  <a href="/entry/{{ entry.dictionary_id }}/{{ entry.word|urlencode }}">{{ entry.word }}</a>
+                  <a href="/entry/{{ entry.dictionary_id }}/{{ entry.word|url_quote }}">{{ entry.display_headword or entry.word }}</a>
                 </h2>
               </div>
               {% if entry.variant_number %}<span class="badge">variant {{ entry.variant_number }}</span>{% endif %}
             </div>
+            {% if entry.display_headword and entry.display_headword != entry.word %}
+              <p class="pos-line">Lookup headword: {{ entry.word }}</p>
+            {% endif %}
             {% if entry.part_of_speech %}<p class="pos-line">{{ entry.part_of_speech }}</p>{% endif %}
             <p>{{ entry.definition }}</p>
             <footer>{{ entry.source_file }}</footer>

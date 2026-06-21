@@ -1,13 +1,13 @@
 {% extends "base.html" %}
 
-{% block title %}{{ word.base_word }}{% endblock %}
+{% block title %}{{ word.lookup_word }}{% endblock %}
 
 {% block content %}
   <section class="section-block">
     <div class="section-heading">
-      <h1>{{ word.base_word }}</h1>
+      <h1>{{ word.lookup_word }}</h1>
       <p>
-        {{ word.entries|length|format_count }} generated entr{% if word.entries|length == 1 %}y{% else %}ies{% endif %}
+        {{ word.entries|length|format_count }} dictionary entr{% if word.entries|length == 1 %}y{% else %}ies{% endif %}
         across {{ word.dictionary_ids|length|format_count }} dictionar{% if word.dictionary_ids|length == 1 %}y{% else %}ies{% endif %}.
       </p>
     </div>
@@ -24,9 +24,12 @@
               {% for entry in entries %}
                 <article class="compare-item compact">
                   <div class="compare-head">
-                    <h3><a href="/entry/{{ entry.dictionary_id }}/{{ entry.word|url_quote }}">{{ entry.word }}</a></h3>
+                    <h3><a href="/entry/{{ entry.dictionary_id }}/{{ entry.word|url_quote }}">{{ entry.display_headword or entry.word }}</a></h3>
                     {% if entry.variant_number %}<span class="badge">variant {{ entry.variant_number }}</span>{% endif %}
                   </div>
+                  {% if entry.display_headword and entry.display_headword != entry.word %}
+                    <p class="pos-line">Lookup headword: {{ entry.word }}</p>
+                  {% endif %}
                   {% if entry.part_of_speech %}<p class="pos-line">{{ entry.part_of_speech }}</p>{% endif %}
                   <p>{{ entry.definition|link_definition }}</p>
                   <footer>{{ entry.source_file }}</footer>
@@ -39,7 +42,7 @@
     {% else %}
       <div class="empty-state">
         <h2>No entries found</h2>
-        <p>This base word is not present in the generated database.</p>
+        <p>This lookup word is not present in the generated database.</p>
       </div>
     {% endif %}
   </section>
