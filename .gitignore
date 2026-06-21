@@ -32,6 +32,7 @@
 !/data/dictionaries/
 !/data/dictionaries/*/
 !/data/dictionaries/*/metadata.json
+!/data/dictionaries/*/headword_resolutions.jsonl
 !/data/dictionaries/*/entries/
 !/data/dictionaries/*/entries/*/
 !/data/dictionaries/*/entries/*/*.txt
