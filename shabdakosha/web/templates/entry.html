@@ -8,7 +8,10 @@
       <div class="entry-heading">
         <div>
           <p class="overline">{{ entry.dictionary_id }}</p>
-          <h1>{{ entry.word }}</h1>
+          <h1>{{ entry.display_headword or entry.word }}</h1>
+          {% if entry.display_headword and entry.display_headword != entry.word %}
+            <p class="pos-line">Lookup headword: {{ entry.word }}</p>
+          {% endif %}
         </div>
         <a class="button-secondary" href="/compare/{{ entry.base_word|urlencode }}">Compare base word</a>
       </div>
@@ -42,6 +45,10 @@
         <div>
           <dt>Base word</dt>
           <dd>{{ entry.base_word }}</dd>
+        </div>
+        <div>
+          <dt>Entry kind</dt>
+          <dd>{{ entry.entry_kind }}</dd>
         </div>
         <div>
           <dt>Variant</dt>

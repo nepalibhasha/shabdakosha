@@ -61,12 +61,12 @@ def database_ready(path: Path) -> bool:
                 """
                 SELECT name
                 FROM sqlite_master
-                WHERE type = 'table' AND name IN ('dictionaries', 'entries')
+                WHERE type = 'table' AND name IN ('dictionaries', 'source_entries', 'entries')
                 """
             ).fetchall()
     except sqlite3.Error:
         return False
-    return {row[0] for row in rows} == {"dictionaries", "entries"}
+    return {row[0] for row in rows} == {"dictionaries", "source_entries", "entries"}
 
 
 def connection() -> sqlite3.Connection:
@@ -199,32 +199,35 @@ def search_entries(
     match_params: list[Any] = [text, text, f"{text}%", f"{text}%", f"%{text}%", f"%{text}%"]
     filter_params: list[Any] = []
     if dictionary_id:
-        filters.append("dictionary_id = ?")
+        filters.append("e.dictionary_id = ?")
         filter_params.append(dictionary_id)
-    where = " AND ".join(["(word = ? OR base_word = ? OR word LIKE ? OR base_word LIKE ? OR word LIKE ? OR base_word LIKE ?)"] + filters)
+    where = " AND ".join(["(e.word = ? OR e.base_word = ? OR e.word LIKE ? OR e.base_word LIKE ? OR e.word LIKE ? OR e.base_word LIKE ?)"] + filters)
 
     with connection() as conn:
         rows = conn.execute(
             f"""
             SELECT
-                dictionary_id,
-                word,
-                base_word,
-                variant_number,
-                part_of_speech,
-                definition,
-                source_file,
+                e.dictionary_id,
+                e.word,
+                e.base_word,
+                e.variant_number,
+                e.part_of_speech,
+                e.definition,
+                e.source_file,
+                e.entry_kind,
+                s.display_headword,
                 CASE
-                    WHEN word = ? THEN 0
-                    WHEN base_word = ? THEN 1
-                    WHEN word LIKE ? THEN 2
-                    WHEN base_word LIKE ? THEN 3
-                    WHEN word LIKE ? THEN 4
+                    WHEN e.word = ? THEN 0
+                    WHEN e.base_word = ? THEN 1
+                    WHEN e.word LIKE ? THEN 2
+                    WHEN e.base_word LIKE ? THEN 3
+                    WHEN e.word LIKE ? THEN 4
                     ELSE 5
                 END AS rank
-            FROM entries
+            FROM entries e
+            JOIN source_entries s ON s.id = e.source_entry_id
             WHERE {where}
-            ORDER BY rank, dictionary_id, base_word, variant_number IS NOT NULL, variant_number, word
+            ORDER BY rank, e.dictionary_id, e.base_word, e.variant_number IS NOT NULL, e.variant_number, e.word
             LIMIT ?
             """,
             rank_params + match_params + filter_params + [limit],
@@ -264,9 +267,10 @@ def get_entry(dictionary_id: str, word: str) -> dict[str, Any]:
     with connection() as conn:
         row = conn.execute(
             """
-            SELECT *
-            FROM entries
-            WHERE dictionary_id = ? AND word = ?
+            SELECT e.*, s.display_headword
+            FROM entries e
+            JOIN source_entries s ON s.id = e.source_entry_id
+            WHERE e.dictionary_id = ? AND e.word = ?
             """,
             (dictionary_id, word),
         ).fetchone()
@@ -281,10 +285,11 @@ def compare_base_word(base_word: str) -> list[dict[str, Any]]:
     with connection() as conn:
         rows = conn.execute(
             """
-            SELECT *
-            FROM entries
-            WHERE base_word = ?
-            ORDER BY dictionary_id, variant_number IS NOT NULL, variant_number, word
+            SELECT e.*, s.display_headword
+            FROM entries e
+            JOIN source_entries s ON s.id = e.source_entry_id
+            WHERE e.base_word = ?
+            ORDER BY e.dictionary_id, e.variant_number IS NOT NULL, e.variant_number, e.word
             """,
             (base_word,),
         ).fetchall()

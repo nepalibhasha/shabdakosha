@@ -88,7 +88,8 @@ artifacts.
 
 The `create_db.py` script generates a SQLite database file located at
 `data/dictionary.db`. This database contains a `dictionaries` table for source
-metadata and an `entries` table for normalized dictionary entries.
+metadata, a `source_entries` table that preserves dictionary entries as curated,
+and an `entries` table for user-facing lookup headwords.
 
 The `dictionaries` table includes:
 
@@ -102,12 +103,12 @@ The `dictionaries` table includes:
 | `script`         | TEXT      | Primary script                               |
 | `metadata_json`  | TEXT      | Full source metadata as JSON                 |
 
-The `entries` table includes:
+The `source_entries` table includes:
 
 | Column Name      | Data Type | Description                                                               |
 | ---------------- | --------- | ------------------------------------------------------------------------- |
 | `dictionary_id`  | TEXT      | Source dictionary id.                                                     |
-| `word`           | TEXT      | The dictionary word or term extracted from the source.                    |
+| `display_headword` | TEXT    | The dictionary headword exactly as maintained, including slash notation.  |
 | `base_word`      | TEXT      | The unnumbered word used for variant grouping.                            |
 | `variant_number` | INTEGER   | Variant number for duplicate headwords, if applicable.                    |
 | `part_of_speech` | TEXT      | The part of speech, etymology, or grammatical note if identified.         |
@@ -115,9 +116,73 @@ The `entries` table includes:
 | `split_definitions` | TEXT   | Definition senses as JSON.                                                |
 | `source_file`    | TEXT      | Source reference for the entry.                                           |
 
+The `entries` table is the canonical lookup table. It duplicates the definition
+fields for simple consumers and links each lookup row back to its preserved
+source row:
+
+| Column Name       | Data Type | Description                                                              |
+| ----------------- | --------- | ------------------------------------------------------------------------ |
+| `dictionary_id`   | TEXT      | Source dictionary id.                                                    |
+| `word`            | TEXT      | Searchable lookup headword.                                              |
+| `base_word`       | TEXT      | Grouping word. For approved slash rows, this is the source slash headword. |
+| `variant_number`  | INTEGER   | Variant number for duplicate source headwords, if applicable.            |
+| `part_of_speech`  | TEXT      | Copied from the source entry.                                            |
+| `definition`      | TEXT      | Copied from the source entry.                                            |
+| `split_definitions` | TEXT    | Copied definition senses as JSON.                                        |
+| `source_file`     | TEXT      | Source reference for the entry.                                          |
+| `source_entry_id` | INTEGER   | Link to `source_entries.id`.                                             |
+| `entry_kind`      | TEXT      | `source_headword` or `resolved_headword`.                                |
+
+Slash-headword mappings are reviewed in each dictionary's
+`headword_resolutions.jsonl` file before they materialize extra lookup rows.
+Generate or refresh those worksheets with:
+
+```bash
+python3 scripts/generate_headword_resolutions.py
+```
+
+Each review file uses JSON Lines: one compact JSON object per source slash
+headword. Each line starts as `status:"pending"` and contains the candidate
+resolved headwords for that source entry:
+
+```json
+{"source_file":"100/kosha_0001_0002.txt","source_headword":"अँगरखा/अँगर्खा","status":"pending","headwords":["अँगरखा","अँगर्खा"]}
+```
+
+Review line keys:
+
+| Key                  | Meaning                                                         |
+| -------------------- | --------------------------------------------------------------- |
+| `source_file`        | Source reference for disambiguating repeated slash headwords.   |
+| `source_headword`    | Original slash headword from the source dictionary.             |
+| `status`             | `pending`, `approved`, `needs_review`, or another review state such as `rejected`. |
+| `headwords`          | Searchable headwords to materialize for the source slash entry. |
+| `note`               | Reviewer note.                                                  |
+| `exact_entries`      | Generated when one or more resolved forms already exist as entries. |
+
+Reviewers should inspect one JSONL line at a time. To materialize all reviewed
+headwords on that line into `entries`, change the line status to `approved`.
+If a refresh adds a new generated headword to an already approved line, the
+generator changes that line to `needs_review` so it is checked again before
+database build.
+
+For example,
+`data/dictionaries/kosha-brihat/headword_resolutions.jsonl`
+contains `अँगरखा/अँगर्खा`, which should resolve to both `अँगरखा` and
+`अँगर्खा`. Compact forms such as `आजकल/काल` need review because the second form
+is `आजकाल`, not bare `काल`. Set the line's `status` to `approved` only after
+checking that every resolved form on the line should point at the slash entry.
+Leave pending, rejected, or needs-review lines out of the consumer contract.
+Consumers search only `entries.word`; they can join `entries.source_entry_id` to
+`source_entries.id` to display the original slash headword and show that sibling
+lookup headwords share the same dictionary source entry.
+
 **Notes:**
 
 - The script parses reviewed `.txt` files using ` --- ` as the field separator.
+- Refreshing `headword_resolutions.jsonl` preserves reviewer-added resolution
+  headwords for the same dictionary, source file, and source headword, then adds
+  newly generated candidates.
 - `kosha-pragya/source/sabdakosh.json.gz` is treated as a source artifact.
   Corrections should be represented in reviewable patch data rather than by
   editing the compressed source directly.
@@ -129,3 +194,10 @@ The `entries` table includes:
   Devanagari numerals.
 - `kosha-pragya` entries with multiple definition groups are emitted as numbered
   variants such as `शब्द(१)`, `शब्द(२)`.
+- Slash headwords such as `आजकल/काल` are preserved in `source_entries`.
+  Approved per-dictionary `headword_resolutions.jsonl` lines materialize
+  additional `entries.word` lookup rows that point back to the same source entry.
+- Future improvement: once a slash headword has approved split lookup rows,
+  consider suppressing the original slash form from ordinary `entries.word`
+  search results while keeping it in `source_entries.display_headword` for
+  faithful dictionary display.

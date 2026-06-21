@@ -36,7 +36,10 @@
               {% for entry in group.entries[:4] %}
                 <a class="entry-preview" href="/entry/{{ entry.dictionary_id }}/{{ entry.word|url_quote }}">
                   <span>{{ entry.dictionary_id }}</span>
-                  <strong>{{ entry.word }}</strong>
+                  <strong>{{ entry.display_headword or entry.word }}</strong>
+                  {% if entry.display_headword and entry.display_headword != entry.word %}
+                    <small>Matched: {{ entry.word }}</small>
+                  {% endif %}
                   <small>{{ entry.definition|summarize(130) }}</small>
                 </a>
               {% endfor %}
