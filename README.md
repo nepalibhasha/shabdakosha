@@ -201,3 +201,7 @@ lookup headwords share the same dictionary source entry.
   consider suppressing the original slash form from ordinary `entries.word`
   search results while keeping it in `source_entries.display_headword` for
   faithful dictionary display.
+- Headword and definition text is normalized to Unicode NFC during the build
+  (`shabdakosha/text.normalize_text`), and the web browser normalizes search
+  and lookup input the same way, so precomposed and decomposed forms of the
+  same word (for example nukta letters) match consistently.

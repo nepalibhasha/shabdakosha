@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Iterator
 
 from shabdakosha.models import Entry
+from shabdakosha.text import normalize_text
 
 
 NEPALI_DIGITS = "०१२३४५६७८९"
@@ -19,27 +20,27 @@ def int_to_nepali_numeral(value: int) -> str:
 
 
 def trim_trailing_punctuation(word: str) -> str:
-    return re.sub(r"[।;(),-]+$", "", word.strip()).strip()
+    return re.sub(r"[।;(),-]+$", "", normalize_text(word).strip()).strip()
 
 
 def build_definition(definition: dict) -> str:
     parts: list[str] = []
-    grammar = definition.get("grammar", "")
-    etymology = definition.get("etymology", "")
+    grammar = normalize_text(definition.get("grammar", ""))
+    etymology = normalize_text(definition.get("etymology", ""))
     if grammar:
         parts.append(grammar)
     if etymology:
         parts.append(etymology)
-    parts.extend(sense for sense in definition.get("senses", []) if sense)
+    parts.extend(normalize_text(sense) for sense in definition.get("senses", []) if sense)
     return " ".join(parts).strip()
 
 
 def build_part_of_speech(definition: dict) -> str | None:
     parts = []
     if definition.get("grammar"):
-        parts.append(definition["grammar"])
+        parts.append(normalize_text(definition["grammar"]))
     if definition.get("etymology"):
-        parts.append(definition["etymology"])
+        parts.append(normalize_text(definition["etymology"]))
     return " ".join(parts) if parts else None
 
 
@@ -51,6 +52,7 @@ def build_split_definitions(definition: dict) -> str:
     else:
         rows = []
         for sense in senses:
+            sense = normalize_text(sense)
             match = re.match(r"^([०-९]+[.])\s*(.*)$", sense)
             if match:
                 rows.append(

@@ -44,6 +44,12 @@
                 </a>
               {% endfor %}
             </div>
+            {% if group.entries|length > 4 %}
+              <p class="more-entries-note">
+                +{{ (group.entries|length - 4)|format_count }} more entr{% if (group.entries|length - 4) == 1 %}y{% else %}ies{% endif %}
+                — <a href="/word/{{ group.lookup_word|url_quote }}">view all</a>
+              </p>
+            {% endif %}
             <footer class="word-group-actions">
               <a class="row-action" href="/word/{{ group.lookup_word|url_quote }}">Open lookup view</a>
             </footer>

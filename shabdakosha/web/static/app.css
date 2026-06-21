@@ -12,6 +12,34 @@
   --gold: #a16207;
   --shadow: 0 18px 45px rgba(23, 32, 28, 0.08);
   --radius: 8px;
+  --button-text: white;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --bg: #111513;
+    --surface: #181d1a;
+    --surface-subtle: #1f2521;
+    --text: #e7ece9;
+    --muted: #9aa39d;
+    --border: #2a3330;
+    --accent: #2dd4bf;
+    --accent-strong: #5eead4;
+    --accent-soft: #163b36;
+    --gold: #facc15;
+    --shadow: 0 18px 45px rgba(0, 0, 0, 0.45);
+    --button-text: #06231f;
+  }
+
+  .site-header {
+    background: rgba(17, 21, 19, 0.92);
+  }
+
+  .brand-mark {
+    background: var(--accent-strong);
+    color: #06231f;
+  }
 }
 
 * {
@@ -70,7 +98,7 @@ button,
   border: 1px solid var(--accent-strong);
   border-radius: var(--radius);
   background: var(--accent);
-  color: white;
+  color: var(--button-text);
   padding: 0.62rem 0.85rem;
   font-weight: 650;
   line-height: 1;
@@ -92,7 +120,7 @@ button:hover,
 
 .button-secondary:hover,
 .row-action:hover {
-  color: white;
+  color: var(--button-text);
 }
 
 .sr-only {
@@ -170,6 +198,31 @@ button:hover,
 
 .autocomplete-wrap input {
   width: 100%;
+  padding-right: 2.25rem;
+}
+
+.input-clear {
+  position: absolute;
+  top: 50%;
+  right: 0.35rem;
+  display: inline-flex;
+  width: 1.6rem;
+  height: 1.6rem;
+  align-items: center;
+  justify-content: center;
+  transform: translateY(-50%);
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 1.2rem;
+  line-height: 1;
+  padding: 0;
+}
+
+.input-clear:hover {
+  background: var(--surface-subtle);
+  color: var(--text);
 }
 
 .suggestion-panel {
@@ -510,6 +563,12 @@ dd {
 .word-group-actions {
   display: flex;
   justify-content: flex-end;
+}
+
+.more-entries-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.84rem;
 }
 
 .result-row {

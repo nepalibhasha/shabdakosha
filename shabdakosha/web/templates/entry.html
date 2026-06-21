@@ -1,64 +1,73 @@
 {% extends "base.html" %}
 
-{% block title %}{{ entry.word }}{% endblock %}
+{% block title %}{% if entry %}{{ entry.word }}{% else %}Entry not found{% endif %}{% endblock %}
 
 {% block content %}
-  <section class="entry-layout">
-    <article class="entry-primary">
-      <div class="entry-heading">
-        <div>
-          <p class="overline">{{ entry.dictionary_id }}</p>
-          <h1>{{ entry.display_headword or entry.word }}</h1>
-          {% if entry.display_headword and entry.display_headword != entry.word %}
-            <p class="pos-line">Lookup headword: {{ entry.word }}</p>
-          {% endif %}
+  {% if entry %}
+    <section class="entry-layout">
+      <article class="entry-primary">
+        <div class="entry-heading">
+          <div>
+            <p class="overline">{{ entry.dictionary_id }}</p>
+            <h1>{{ entry.display_headword or entry.word }}</h1>
+            {% if entry.display_headword and entry.display_headword != entry.word %}
+              <p class="pos-line">Lookup headword: {{ entry.word }}</p>
+            {% endif %}
+          </div>
+          <a class="button-secondary" href="/compare/{{ entry.base_word|url_quote }}">Compare base word</a>
         </div>
-        <a class="button-secondary" href="/compare/{{ entry.base_word|url_quote }}">Compare base word</a>
-      </div>
 
-      {% if entry.part_of_speech %}
-        <p class="pos-line">{{ entry.part_of_speech }}</p>
-      {% endif %}
+        {% if entry.part_of_speech %}
+          <p class="pos-line">{{ entry.part_of_speech }}</p>
+        {% endif %}
 
-      <section class="definition-block">
-        <h2>Definition</h2>
-        <p>{{ entry.definition|link_definition }}</p>
-      </section>
-
-      {% if entry.split_definitions %}
         <section class="definition-block">
-          <h2>Split definitions</h2>
-          <ol class="sense-list">
-            {% for sense in entry.split_definitions %}
-              <li class="{% if not sense.number %}sense-without-number{% endif %}">
-                {% if sense.number %}<span>{{ sense.number }}</span>{% endif %}
-                <p>{{ sense.text|link_definition }}</p>
-              </li>
-            {% endfor %}
-          </ol>
+          <h2>Definition</h2>
+          <p>{{ entry.definition|link_definition }}</p>
         </section>
-      {% endif %}
-    </article>
 
-    <aside class="entry-sidebar">
-      <dl>
-        <div>
-          <dt>Base word</dt>
-          <dd>{{ entry.base_word }}</dd>
-        </div>
-        <div>
-          <dt>Entry kind</dt>
-          <dd>{{ entry.entry_kind }}</dd>
-        </div>
-        <div>
-          <dt>Variant</dt>
-          <dd>{{ entry.variant_number or "None" }}</dd>
-        </div>
-        <div>
-          <dt>Source reference</dt>
-          <dd><code>{{ entry.source_file }}</code></dd>
-        </div>
-      </dl>
-    </aside>
-  </section>
+        {% if entry.split_definitions %}
+          <section class="definition-block">
+            <h2>Split definitions</h2>
+            <ol class="sense-list">
+              {% for sense in entry.split_definitions %}
+                <li class="{% if not sense.number %}sense-without-number{% endif %}">
+                  {% if sense.number %}<span>{{ sense.number }}</span>{% endif %}
+                  <p>{{ sense.text|link_definition }}</p>
+                </li>
+              {% endfor %}
+            </ol>
+          </section>
+        {% endif %}
+      </article>
+
+      <aside class="entry-sidebar">
+        <dl>
+          <div>
+            <dt>Base word</dt>
+            <dd>{{ entry.base_word }}</dd>
+          </div>
+          <div>
+            <dt>Entry kind</dt>
+            <dd>{{ entry.entry_kind }}</dd>
+          </div>
+          <div>
+            <dt>Variant</dt>
+            <dd>{{ entry.variant_number or "None" }}</dd>
+          </div>
+          <div>
+            <dt>Source reference</dt>
+            <dd><code>{{ entry.source_file }}</code></dd>
+          </div>
+        </dl>
+      </aside>
+    </section>
+  {% else %}
+    <section class="section-block">
+      <div class="empty-state">
+        <h2>Entry not found</h2>
+        <p>This entry is not present in the generated database.</p>
+      </div>
+    </section>
+  {% endif %}
 {% endblock %}

@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Iterator
 
 from shabdakosha.models import Entry
+from shabdakosha.text import normalize_text
 
 
 ENTRY_SEP = " --- "
@@ -28,7 +29,7 @@ def trim_headword(word: str) -> str:
 
 
 def parse_entry(line: str) -> tuple[str, str | None, str] | None:
-    line = line.strip()
+    line = normalize_text(line).strip()
     if not line:
         return None
     match = re.match(r"(.+?)\s+---(.+?)---(.+)", line)

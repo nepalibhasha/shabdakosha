@@ -11,6 +11,7 @@ from pathlib import Path
 
 from shabdakosha.importers import brihat, pragya
 from shabdakosha.models import DictionaryInfo, Entry
+from shabdakosha.text import normalize_text
 
 
 NEPALI_DIGITS = "०१२३४५६७८९"
@@ -354,8 +355,8 @@ def iter_resolution_files(data_dir: Path, resolutions_path: Path | None = None) 
 
 def resolution_headword(resolution_item: str | dict) -> str:
     if isinstance(resolution_item, str):
-        return resolution_item.strip()
-    return (resolution_item.get("headword") or "").strip()
+        return normalize_text(resolution_item).strip()
+    return normalize_text(resolution_item.get("headword") or "").strip()
 
 
 def insert_reviewed_headwords(conn: sqlite3.Connection, json_paths: Iterable[Path]) -> int:
@@ -375,7 +376,7 @@ def insert_reviewed_headwords(conn: sqlite3.Connection, json_paths: Iterable[Pat
         for group in groups:
             dictionary_id = (group.get("dictionary_id") or json_path.parent.name).strip()
             source_file = (group.get("source_file") or "").strip()
-            source_headword = (group.get("source_headword") or "").strip()
+            source_headword = normalize_text(group.get("source_headword") or "").strip()
             if not dictionary_id or not source_headword:
                 continue
 

@@ -12,13 +12,14 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import quote
 
-from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi import FastAPI, Query, Request
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from markupsafe import Markup, escape
 
 from shabdakosha.build_db import build_database
+from shabdakosha.text import normalize_text
 
 
 PACKAGE_DIR = Path(__file__).resolve().parent
@@ -139,6 +140,7 @@ def url_quote(value: str | None) -> str:
 def link_definition(value: str | None) -> Markup:
     if not value:
         return Markup("")
+    value = normalize_text(value)
 
     parts: list[str] = []
     position = 0
@@ -159,6 +161,7 @@ def link_definition(value: str | None) -> Markup:
 
 @lru_cache(maxsize=20000)
 def lookup_word_exists(word: str) -> bool:
+    word = normalize_text(word)
     if not word:
         return False
     with connection() as conn:
@@ -222,7 +225,7 @@ def search_entries(
     dictionary_id: str | None = None,
     limit: int = 80,
 ) -> list[dict[str, Any]]:
-    text = query.strip()
+    text = normalize_text(query).strip()
     if not text:
         return []
 
@@ -272,7 +275,7 @@ def grouped_search(
     dictionary_id: str | None = None,
     limit: int = 90,
 ) -> list[dict[str, Any]]:
-    text = query.strip()
+    text = normalize_text(query).strip()
     rows = search_entries(query, dictionary_id=dictionary_id, limit=limit)
     groups: dict[str, dict[str, Any]] = {}
     for row in rows:
@@ -302,7 +305,7 @@ def grouped_search(
     return grouped
 
 
-def get_entry(dictionary_id: str, word: str) -> dict[str, Any]:
+def get_entry(dictionary_id: str, word: str) -> dict[str, Any] | None:
     with connection() as conn:
         row = conn.execute(
             """
@@ -311,16 +314,17 @@ def get_entry(dictionary_id: str, word: str) -> dict[str, Any]:
             JOIN source_entries s ON s.id = e.source_entry_id
             WHERE e.dictionary_id = ? AND e.word = ?
             """,
-            (dictionary_id, word),
+            (dictionary_id, normalize_text(word)),
         ).fetchone()
     if row is None:
-        raise HTTPException(status_code=404, detail="Entry not found")
+        return None
     entry = row_to_dict(row)
     entry["split_definitions"] = parse_json(entry.get("split_definitions")) or []
     return entry
 
 
 def compare_lookup_word(lookup_word: str) -> list[dict[str, Any]]:
+    lookup_word = normalize_text(lookup_word)
     with connection() as conn:
         rows = conn.execute(
             """
@@ -346,6 +350,7 @@ def compare_lookup_word(lookup_word: str) -> list[dict[str, Any]]:
 
 
 def get_word_groups(lookup_word: str) -> dict[str, Any]:
+    lookup_word = normalize_text(lookup_word)
     entries = compare_lookup_word(lookup_word)
     by_dictionary: dict[str, list[dict[str, Any]]] = {}
     for entry in entries:
@@ -360,7 +365,7 @@ def get_word_groups(lookup_word: str) -> dict[str, Any]:
 
 
 def suggest_words(query: str, dictionary_id: str | None = None, limit: int = 12) -> list[dict[str, Any]]:
-    text = query.strip()
+    text = normalize_text(query).strip()
     if not text:
         return []
 
@@ -467,13 +472,15 @@ def create_app() -> FastAPI:
 
     @app.get("/entry/{dictionary_id}/{word:path}", response_class=HTMLResponse)
     def entry(request: Request, dictionary_id: str, word: str) -> HTMLResponse:
+        found = get_entry(dictionary_id, word)
         return templates.TemplateResponse(
             request,
             "entry.html",
             {
-                "entry": get_entry(dictionary_id, word),
+                "entry": found,
                 "dictionaries": get_dictionaries(),
             },
+            status_code=200 if found else 404,
         )
 
     @app.get("/compare/{base_word:path}", response_class=HTMLResponse)

@@ -26,7 +26,7 @@
               <p class="pos-line">Lookup headword: {{ entry.word }}</p>
             {% endif %}
             {% if entry.part_of_speech %}<p class="pos-line">{{ entry.part_of_speech }}</p>{% endif %}
-            <p>{{ entry.definition }}</p>
+            <p>{{ entry.definition|link_definition }}</p>
             <footer>{{ entry.source_file }}</footer>
           </article>
         {% endfor %}
