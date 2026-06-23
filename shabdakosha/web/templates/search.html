@@ -13,7 +13,7 @@
           {% if dictionary_id %}in <strong>{{ dictionary_id }}</strong>{% endif %}
         </p>
       {% else %}
-        <p>Search for an exact headword, base word, prefix, or contained text.</p>
+        <p>Search for an exact headword, base word, roman alias, prefix, or contained text.</p>
       {% endif %}
     </div>
 
@@ -25,6 +25,9 @@
               <div>
                 <a class="result-title" href="/word/{{ group.lookup_word|url_quote }}">{{ group.lookup_word }}</a>
                 <p>{{ group.entries|length|format_count }} dictionary entr{% if group.entries|length == 1 %}y{% else %}ies{% endif %}</p>
+                {% if group.matched_roman_alias %}
+                  <p class="roman-match">Roman match: {{ group.matched_roman_alias }}</p>
+                {% endif %}
               </div>
               <div class="badge-row">
                 {% for dictionary in group.dictionaries %}
@@ -39,6 +42,9 @@
                   <strong>{{ entry.display_headword or entry.word }}</strong>
                   {% if entry.display_headword and entry.display_headword != entry.word %}
                     <small>Matched: {{ entry.word }}</small>
+                  {% endif %}
+                  {% if entry.matched_roman_alias %}
+                    <small class="roman-match">Roman: {{ entry.matched_roman_alias }}</small>
                   {% endif %}
                   <small>{{ entry.definition|summarize(130) }}</small>
                 </a>
@@ -59,12 +65,12 @@
     {% elif q %}
       <div class="empty-state">
         <h2>No entries found</h2>
-        <p>Try another spelling or remove the dictionary filter.</p>
+        <p>Try another Devanagari or roman spelling, or remove the dictionary filter.</p>
       </div>
     {% else %}
       <div class="empty-state">
         <h2>Start with a headword</h2>
-        <p>Examples: नेपाल, पानी, भाषा.</p>
+        <p>Examples: नेपाल, paani, bhasha.</p>
       </div>
     {% endif %}
   </section>

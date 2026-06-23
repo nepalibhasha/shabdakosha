@@ -13,7 +13,7 @@
       <form class="hero-search" action="/search" method="get" data-autocomplete>
         <label class="sr-only" for="hero-search">Search headwords</label>
         <div class="autocomplete-wrap">
-          <input id="hero-search" name="q" placeholder="नेपाल, पानी, भाषा..." autocomplete="off" autofocus>
+          <input id="hero-search" name="q" placeholder="नेपाल, paani, bhasha..." autocomplete="off" autofocus>
           <button type="button" class="input-clear" aria-label="Clear search" hidden>&times;</button>
           <div class="suggestion-panel" data-suggestions hidden></div>
         </div>
@@ -87,7 +87,7 @@
           </div>
           <form class="inline-search" action="/search" method="get">
             <input type="hidden" name="dictionary_id" value="{{ dictionary.id }}">
-            <input name="q" placeholder="Search {{ dictionary.id }}">
+            <input name="q" placeholder="Search {{ dictionary.id }} by देवनागरी or roman">
             <button type="submit">Search</button>
           </form>
         </article>

@@ -266,6 +266,12 @@ button:hover,
   font-size: 0.78rem;
 }
 
+.roman-match {
+  color: var(--accent);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
 .page {
   padding: 2rem 0 4rem;
 }
@@ -512,6 +518,10 @@ dd {
   color: var(--muted);
 }
 
+.word-group-head .roman-match {
+  color: var(--accent);
+}
+
 .badge-row {
   display: flex;
   flex-wrap: wrap;
@@ -547,6 +557,10 @@ dd {
 .entry-preview small {
   color: var(--muted);
   font-size: 0.78rem;
+}
+
+.entry-preview .roman-match {
+  color: var(--accent);
 }
 
 .entry-preview strong {
