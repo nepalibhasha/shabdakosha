@@ -42,10 +42,29 @@ def _has_devanagari(value: str) -> bool:
     return bool(DEVANAGARI_RE.search(value))
 
 
+def _common_prefix_length(left: str, part: str) -> int:
+    common_prefix_length = 0
+    for left_char, part_char in zip(left, part):
+        if left_char != part_char:
+            break
+        common_prefix_length += 1
+    return common_prefix_length
+
+
+def part_looks_like_full_alternate(left: str, part: str) -> bool:
+    common_prefix_length = _common_prefix_length(left, part)
+    if not left or not part:
+        return False
+    return common_prefix_length >= 3 and common_prefix_length / min(len(left), len(part)) >= 0.5
+
+
 def _replace_from_shared_initial(left: str, part: str) -> str | None:
     first = part[0] if part else ""
     if not first:
         return None
+
+    if part_looks_like_full_alternate(left, part):
+        return part
 
     index = left.rfind(first)
     if index < 0:

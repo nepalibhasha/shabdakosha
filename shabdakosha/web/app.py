@@ -19,6 +19,7 @@ from fastapi.templating import Jinja2Templates
 from markupsafe import Markup, escape
 
 from shabdakosha.build_db import build_database
+from shabdakosha.romanization import normalize_roman_alias
 from shabdakosha.text import normalize_text
 
 
@@ -28,6 +29,7 @@ DEFAULT_DB_PATH = PROJECT_ROOT / "data" / "dictionary.db"
 DEFAULT_DATA_DIR = PROJECT_ROOT / "data" / "dictionaries"
 DB_BUILD_LOCK = threading.Lock()
 DEVANAGARI_TOKEN_RE = re.compile(r"[\u0900-\u097F][\u0900-\u097F\u200c\u200d]*")
+VARIANT_SUFFIX_SPACING_RE = re.compile(r"\s+(\([०-९]+\))$")
 DEFINITION_LINK_STOPWORDS = {
     "अनि",
     "अर्थात्",
@@ -88,12 +90,12 @@ def database_ready(path: Path) -> bool:
                 """
                 SELECT name
                 FROM sqlite_master
-                WHERE type = 'table' AND name IN ('dictionaries', 'source_entries', 'entries')
+                WHERE type = 'table' AND name IN ('dictionaries', 'source_entries', 'entries', 'roman_aliases')
                 """
             ).fetchall()
     except sqlite3.Error:
         return False
-    return {row[0] for row in rows} == {"dictionaries", "source_entries", "entries"}
+    return {row[0] for row in rows} == {"dictionaries", "source_entries", "entries", "roman_aliases"}
 
 
 def connection() -> sqlite3.Connection:
@@ -114,6 +116,11 @@ def parse_json(value: str | None) -> Any:
         return json.loads(value)
     except json.JSONDecodeError:
         return None
+
+
+def normalize_lookup_text(value: str | None) -> str:
+    text = normalize_text(value or "").strip()
+    return VARIANT_SUFFIX_SPACING_RE.sub(r"\1", text)
 
 
 def format_count(value: int | None) -> str:
@@ -161,7 +168,7 @@ def link_definition(value: str | None) -> Markup:
 
 @lru_cache(maxsize=20000)
 def lookup_word_exists(word: str) -> bool:
-    word = normalize_text(word)
+    word = normalize_lookup_text(word)
     if not word:
         return False
     with connection() as conn:
@@ -225,18 +232,31 @@ def search_entries(
     dictionary_id: str | None = None,
     limit: int = 80,
 ) -> list[dict[str, Any]]:
-    text = normalize_text(query).strip()
+    text = normalize_lookup_text(query)
     if not text:
         return []
+    roman_text = normalize_roman_alias(text)
 
     filters = []
-    rank_params: list[Any] = [text, text, f"{text}%", f"{text}%", f"%{text}%"]
+    rank_params: list[Any] = [
+        text,
+        text,
+        f"{text}%",
+        f"{text}%",
+        roman_text,
+        f"{roman_text}%",
+        f"%{text}%",
+        f"%{roman_text}%",
+    ]
     match_params: list[Any] = [text, text, f"{text}%", f"{text}%", f"%{text}%", f"%{text}%"]
+    alias_params: list[Any] = [roman_text, f"{roman_text}%", f"%{roman_text}%"]
     filter_params: list[Any] = []
     if dictionary_id:
         filters.append("e.dictionary_id = ?")
         filter_params.append(dictionary_id)
-    where = " AND ".join(["(e.word = ? OR e.base_word = ? OR e.word LIKE ? OR e.base_word LIKE ? OR e.word LIKE ? OR e.base_word LIKE ?)"] + filters)
+    direct_where = "(e.word = ? OR e.base_word = ? OR e.word LIKE ? OR e.base_word LIKE ? OR e.word LIKE ? OR e.base_word LIKE ?)"
+    alias_where = "(? != '' AND (ra.alias = ? OR ra.alias LIKE ? OR ra.alias LIKE ?))"
+    where = " AND ".join([f"({direct_where} OR {alias_where})"] + filters)
 
     with connection() as conn:
         rows = conn.execute(
@@ -251,21 +271,36 @@ def search_entries(
                 e.source_file,
                 e.entry_kind,
                 s.display_headword,
-                CASE
+                COALESCE(
+                    MAX(CASE WHEN ra.alias = ? THEN ra.alias END),
+                    MAX(CASE WHEN ra.alias LIKE ? THEN ra.alias END),
+                    MAX(CASE WHEN ra.alias LIKE ? THEN ra.alias END)
+                ) AS matched_roman_alias,
+                COALESCE(
+                    MAX(CASE WHEN ra.alias = ? THEN ra.weight END),
+                    MAX(CASE WHEN ra.alias LIKE ? THEN ra.weight END),
+                    MAX(CASE WHEN ra.alias LIKE ? THEN ra.weight END)
+                ) AS matched_roman_weight,
+                MIN(CASE
                     WHEN e.word = ? THEN 0
                     WHEN e.base_word = ? THEN 1
                     WHEN e.word LIKE ? THEN 2
                     WHEN e.base_word LIKE ? THEN 3
+                    WHEN ra.alias = ? THEN 4
+                    WHEN ra.alias LIKE ? THEN 5
                     WHEN e.word LIKE ? THEN 4
-                    ELSE 5
-                END AS rank
+                    WHEN ra.alias LIKE ? THEN 6
+                    ELSE 7
+                END) AS rank
             FROM entries e
             JOIN source_entries s ON s.id = e.source_entry_id
+            LEFT JOIN roman_aliases ra ON ra.entry_id = e.id
             WHERE {where}
-            ORDER BY rank, e.dictionary_id, e.base_word, e.variant_number IS NOT NULL, e.variant_number, e.word
+            GROUP BY e.id
+            ORDER BY rank, matched_roman_weight DESC, e.dictionary_id, e.base_word, e.variant_number IS NOT NULL, e.variant_number, e.word
             LIMIT ?
             """,
-            rank_params + match_params + filter_params + [limit],
+            alias_params + alias_params + rank_params + match_params + [roman_text] + alias_params + filter_params + [limit],
         ).fetchall()
     return [row_to_dict(row) for row in rows]
 
@@ -275,7 +310,7 @@ def grouped_search(
     dictionary_id: str | None = None,
     limit: int = 90,
 ) -> list[dict[str, Any]]:
-    text = normalize_text(query).strip()
+    text = normalize_lookup_text(query)
     rows = search_entries(query, dictionary_id=dictionary_id, limit=limit)
     groups: dict[str, dict[str, Any]] = {}
     for row in rows:
@@ -290,11 +325,19 @@ def grouped_search(
                 "lookup_word": lookup_word,
                 "base_word": lookup_word,
                 "rank": row["rank"],
+                "matched_roman_alias": row.get("matched_roman_alias"),
+                "matched_roman_weight": row.get("matched_roman_weight"),
                 "dictionaries": set(),
                 "entries": [],
             },
         )
         group["rank"] = min(group["rank"], row["rank"])
+        if row.get("matched_roman_weight") is not None and (
+            group.get("matched_roman_weight") is None
+            or row["matched_roman_weight"] > group["matched_roman_weight"]
+        ):
+            group["matched_roman_alias"] = row.get("matched_roman_alias")
+            group["matched_roman_weight"] = row.get("matched_roman_weight")
         group["dictionaries"].add(row["dictionary_id"])
         group["entries"].append(row)
 
@@ -314,7 +357,7 @@ def get_entry(dictionary_id: str, word: str) -> dict[str, Any] | None:
             JOIN source_entries s ON s.id = e.source_entry_id
             WHERE e.dictionary_id = ? AND e.word = ?
             """,
-            (dictionary_id, normalize_text(word)),
+            (dictionary_id, normalize_lookup_text(word)),
         ).fetchone()
     if row is None:
         return None
@@ -324,7 +367,7 @@ def get_entry(dictionary_id: str, word: str) -> dict[str, Any] | None:
 
 
 def compare_lookup_word(lookup_word: str) -> list[dict[str, Any]]:
-    lookup_word = normalize_text(lookup_word)
+    lookup_word = normalize_lookup_text(lookup_word)
     with connection() as conn:
         rows = conn.execute(
             """
@@ -350,7 +393,7 @@ def compare_lookup_word(lookup_word: str) -> list[dict[str, Any]]:
 
 
 def get_word_groups(lookup_word: str) -> dict[str, Any]:
-    lookup_word = normalize_text(lookup_word)
+    lookup_word = normalize_lookup_text(lookup_word)
     entries = compare_lookup_word(lookup_word)
     by_dictionary: dict[str, list[dict[str, Any]]] = {}
     for entry in entries:
@@ -365,18 +408,22 @@ def get_word_groups(lookup_word: str) -> dict[str, Any]:
 
 
 def suggest_words(query: str, dictionary_id: str | None = None, limit: int = 12) -> list[dict[str, Any]]:
-    text = normalize_text(query).strip()
+    text = normalize_lookup_text(query)
     if not text:
         return []
+    roman_text = normalize_roman_alias(text)
 
     filters = []
-    rank_params: list[Any] = [text, text, f"{text}%"]
+    rank_params: list[Any] = [text, text, f"{text}%", roman_text, f"{roman_text}%"]
     match_params: list[Any] = [text, text, f"{text}%", f"{text}%"]
+    alias_params: list[Any] = [roman_text, f"{roman_text}%"]
     filter_params: list[Any] = []
     if dictionary_id:
         filters.append("e.dictionary_id = ?")
         filter_params.append(dictionary_id)
-    where = " AND ".join(["(e.word = ? OR e.base_word = ? OR e.word LIKE ? OR e.base_word LIKE ?)"] + filters)
+    direct_where = "(e.word = ? OR e.base_word = ? OR e.word LIKE ? OR e.base_word LIKE ?)"
+    alias_where = "(? != '' AND (ra.alias = ? OR ra.alias LIKE ?))"
+    where = " AND ".join([f"({direct_where} OR {alias_where})"] + filters)
 
     with connection() as conn:
         rows = conn.execute(
@@ -385,22 +432,34 @@ def suggest_words(query: str, dictionary_id: str | None = None, limit: int = 12)
                 e.word,
                 MIN(e.base_word) AS base_word,
                 MIN(s.display_headword) AS display_headword,
+                COALESCE(
+                    MAX(CASE WHEN ra.alias = ? THEN ra.alias END),
+                    MAX(CASE WHEN ra.alias LIKE ? THEN ra.alias END)
+                ) AS matched_roman_alias,
                 MIN(CASE
                     WHEN e.word = ? THEN 0
                     WHEN e.base_word = ? THEN 1
                     WHEN e.word LIKE ? THEN 2
+                    WHEN ra.alias = ? THEN 3
+                    WHEN ra.alias LIKE ? THEN 4
                     ELSE 3
                 END) AS rank,
+                MAX(CASE
+                    WHEN ra.alias = ? THEN ra.weight
+                    WHEN ra.alias LIKE ? THEN ra.weight
+                    ELSE NULL
+                END) AS matched_roman_weight,
                 COUNT(*) AS entry_count,
                 GROUP_CONCAT(DISTINCT e.dictionary_id) AS dictionary_ids
             FROM entries e
             JOIN source_entries s ON s.id = e.source_entry_id
+            LEFT JOIN roman_aliases ra ON ra.entry_id = e.id
             WHERE {where}
             GROUP BY e.word
-            ORDER BY rank, e.word
+            ORDER BY rank, matched_roman_weight DESC, e.word
             LIMIT ?
             """,
-            rank_params + match_params + filter_params + [limit],
+            alias_params + rank_params + alias_params + match_params + [roman_text] + alias_params + filter_params + [limit],
         ).fetchall()
 
     suggestions = []

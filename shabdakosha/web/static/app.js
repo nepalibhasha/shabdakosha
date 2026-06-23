@@ -50,11 +50,15 @@ function setupAutocomplete(form) {
         const display = item.display_headword && item.display_headword !== item.word
           ? ` · source: ${item.display_headword}`
           : "";
+        const roman = item.matched_roman_alias
+          ? `<small class="roman-match">Roman: ${escapeHtml(item.matched_roman_alias)}</small>`
+          : "";
         return `
           <button class="suggestion-item" type="button" id="${panel.id}-option-${index}" role="option" aria-selected="false" data-index="${index}">
             <span>
               <strong>${escapeHtml(item.word || item.base_word)}</strong>
               <small>${escapeHtml(dictionaries)} · ${item.entry_count} entries${escapeHtml(display)}</small>
+              ${roman}
             </span>
           </button>
         `;

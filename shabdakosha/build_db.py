@@ -11,6 +11,7 @@ from pathlib import Path
 
 from shabdakosha.importers import brihat, pragya
 from shabdakosha.models import DictionaryInfo, Entry
+from shabdakosha.romanization import roman_aliases
 from shabdakosha.text import normalize_text
 
 
@@ -20,6 +21,7 @@ IMPORTERS = {
     "kosha-pragya": pragya,
 }
 APPROVED_RESOLUTION_STATUSES = {"approved"}
+PAGE_BOUNDARY_DUPLICATE_DICTIONARIES = {"kosha-brihat"}
 
 
 def int_to_nepali_numeral(value: int) -> str:
@@ -27,11 +29,12 @@ def int_to_nepali_numeral(value: int) -> str:
 
 
 def extract_base_word_and_variant(word: str) -> tuple[str, int | None]:
-    match = re.match(r"^(.+)\(([०-९]+)\)$", word)
+    word = normalize_text(word).strip()
+    match = re.match(r"^(.+?)\s*\(([०-९]+)\)$", word)
     if not match:
         return word, None
     number = int("".join(str(NEPALI_DIGITS.index(digit)) for digit in match.group(2)))
-    return match.group(1), number
+    return match.group(1).strip(), number
 
 
 def load_dictionary_info(dictionary_dir: Path) -> DictionaryInfo:
@@ -59,6 +62,7 @@ def setup_database(db_path: Path):
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
+    cursor.execute("DROP TABLE IF EXISTS roman_aliases")
     cursor.execute("DROP TABLE IF EXISTS entries")
     cursor.execute("DROP TABLE IF EXISTS source_entries")
     cursor.execute("DROP TABLE IF EXISTS dictionaries")
@@ -110,11 +114,34 @@ def setup_database(db_path: Path):
         )
         """
     )
+    cursor.execute(
+        """
+        CREATE TABLE roman_aliases (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            dictionary_id TEXT NOT NULL,
+            entry_id INTEGER NOT NULL,
+            source_entry_id INTEGER NOT NULL,
+            source_word TEXT NOT NULL,
+            alias TEXT NOT NULL,
+            kind TEXT NOT NULL,
+            weight INTEGER NOT NULL,
+            generator_version TEXT NOT NULL,
+            source_scheme TEXT NOT NULL,
+            FOREIGN KEY(dictionary_id) REFERENCES dictionaries(id),
+            FOREIGN KEY(entry_id) REFERENCES entries(id),
+            FOREIGN KEY(source_entry_id) REFERENCES source_entries(id)
+        )
+        """
+    )
     cursor.execute("CREATE UNIQUE INDEX idx_entries_dictionary_word ON entries(dictionary_id, word)")
     cursor.execute("CREATE INDEX idx_entries_dictionary_base_word ON entries(dictionary_id, base_word)")
     cursor.execute("CREATE INDEX idx_entries_word ON entries(word)")
     cursor.execute("CREATE INDEX idx_entries_base_word ON entries(base_word)")
     cursor.execute("CREATE INDEX idx_entries_source_entry ON entries(source_entry_id)")
+    cursor.execute("CREATE UNIQUE INDEX idx_roman_aliases_entry_alias ON roman_aliases(entry_id, alias)")
+    cursor.execute("CREATE INDEX idx_roman_aliases_alias ON roman_aliases(alias)")
+    cursor.execute("CREATE INDEX idx_roman_aliases_dictionary_alias ON roman_aliases(dictionary_id, alias)")
+    cursor.execute("CREATE INDEX idx_roman_aliases_source_entry ON roman_aliases(source_entry_id)")
     cursor.execute("CREATE INDEX idx_source_entries_dictionary_headword ON source_entries(dictionary_id, display_headword)")
     return conn
 
@@ -212,12 +239,13 @@ def insert_entries(conn: sqlite3.Connection, dictionary_id: str, entries: Iterab
     inserted = updated = numbered = skipped = 0
 
     for entry in entries:
-        word = entry.word
+        word = normalize_text(entry.word).strip()
         base_word, variant_number = (
-            (entry.base_word, entry.variant_number)
+            (normalize_text(entry.base_word).strip(), entry.variant_number)
             if entry.base_word is not None
             else extract_base_word_and_variant(word)
         )
+        base_word = base_word.strip()
         split_definitions = entry.split_definitions or brihat.split_definitions(entry.definition)
 
         source_entry_id = insert_source_entry(
@@ -249,7 +277,7 @@ def insert_entries(conn: sqlite3.Connection, dictionary_id: str, entries: Iterab
             inserted += 1
         except sqlite3.IntegrityError:
             cursor.execute("DELETE FROM source_entries WHERE id = ?", (source_entry_id,))
-            if word == previous_word:
+            if word == previous_word and dictionary_id in PAGE_BOUNDARY_DUPLICATE_DICTIONARIES:
                 cursor.execute(
                     """
                     SELECT id, source_entry_id, LENGTH(definition)
@@ -279,6 +307,8 @@ def insert_entries(conn: sqlite3.Connection, dictionary_id: str, entries: Iterab
                     updated += 1
                 else:
                     skipped += 1
+            elif dictionary_id not in PAGE_BOUNDARY_DUPLICATE_DICTIONARIES:
+                skipped += 1
             else:
                 if word not in duplicate_counts:
                     cursor.execute(
@@ -447,10 +477,60 @@ def insert_reviewed_headwords(conn: sqlite3.Connection, json_paths: Iterable[Pat
     return inserted
 
 
+def insert_generated_roman_aliases(conn: sqlite3.Connection) -> int:
+    cursor = conn.cursor()
+    inserted = 0
+    rows = cursor.execute(
+        """
+        SELECT
+            id,
+            dictionary_id,
+            source_entry_id,
+            word,
+            base_word,
+            variant_number
+        FROM entries
+        ORDER BY dictionary_id, id
+        """
+    ).fetchall()
+
+    for row in rows:
+        source_word = row["base_word"] if row["variant_number"] is not None else row["word"]
+        source_word = normalize_text(source_word) or ""
+        if not source_word or "/" in source_word:
+            continue
+
+        for alias in roman_aliases(source_word):
+            cursor.execute(
+                """
+                INSERT OR IGNORE INTO roman_aliases
+                (dictionary_id, entry_id, source_entry_id, source_word, alias,
+                 kind, weight, generator_version, source_scheme)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    row["dictionary_id"],
+                    row["id"],
+                    row["source_entry_id"],
+                    source_word,
+                    alias.text,
+                    alias.kind,
+                    alias.weight,
+                    alias.generator_version,
+                    alias.source_scheme,
+                ),
+            )
+            inserted += cursor.rowcount
+
+    conn.commit()
+    return inserted
+
+
 def build_database(data_dir: Path, db_path: Path, resolutions_path: Path | None = None):
     conn = setup_database(db_path)
     summaries = {}
     reviewed_headword_count = 0
+    roman_alias_count = 0
     try:
         for dictionary_dir in iter_dictionary_dirs(data_dir):
             info = load_dictionary_info(dictionary_dir)
@@ -465,6 +545,7 @@ def build_database(data_dir: Path, db_path: Path, resolutions_path: Path | None 
             conn,
             iter_resolution_files(data_dir, resolutions_path),
         )
+        roman_alias_count = insert_generated_roman_aliases(conn)
         totals = dict(
             conn.execute(
                 "SELECT dictionary_id, COUNT(*) FROM entries GROUP BY dictionary_id ORDER BY dictionary_id"
@@ -472,7 +553,7 @@ def build_database(data_dir: Path, db_path: Path, resolutions_path: Path | None 
         )
     finally:
         conn.close()
-    return summaries, totals, reviewed_headword_count
+    return summaries, totals, reviewed_headword_count, roman_alias_count
 
 
 def main() -> int:
@@ -493,7 +574,7 @@ def main() -> int:
     if not args.data_dir.is_dir():
         raise SystemExit(f"Data directory not found: {args.data_dir}")
 
-    summaries, totals, reviewed_headword_count = build_database(
+    summaries, totals, reviewed_headword_count, roman_alias_count = build_database(
         args.data_dir,
         args.db_path,
         args.resolutions_path,
@@ -505,6 +586,7 @@ def main() -> int:
         print(f"  Inserted: {inserted}, updated: {updated}, numbered: {numbered}, skipped: {skipped}")
     print(f"Entries: {sum(totals.values())}")
     print(f"Approved reviewed headwords: {reviewed_headword_count}")
+    print(f"Generated roman aliases: {roman_alias_count}")
     return 0
 
 

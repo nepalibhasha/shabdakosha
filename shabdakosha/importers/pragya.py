@@ -8,6 +8,7 @@ import re
 from pathlib import Path
 from typing import Iterator
 
+from shabdakosha.abbreviations import expand_pragya_abbreviation
 from shabdakosha.models import Entry
 from shabdakosha.text import normalize_text
 
@@ -38,17 +39,16 @@ def build_definition(definition: dict) -> str:
 def build_part_of_speech(definition: dict) -> str | None:
     parts = []
     if definition.get("grammar"):
-        parts.append(normalize_text(definition["grammar"]))
+        parts.append(expand_pragya_abbreviation(definition["grammar"]))
     if definition.get("etymology"):
         parts.append(normalize_text(definition["etymology"]))
     return " ".join(parts) if parts else None
 
 
 def build_split_definitions(definition: dict) -> str:
-    part_of_speech = build_part_of_speech(definition)
     senses = definition.get("senses", [])
     if not senses:
-        rows = [{"number": None, "text": "", "part_of_speech": part_of_speech}]
+        rows = [{"number": None, "text": "", "part_of_speech": None}]
     else:
         rows = []
         for sense in senses:
@@ -59,11 +59,11 @@ def build_split_definitions(definition: dict) -> str:
                     {
                         "number": match.group(1),
                         "text": match.group(2).strip(),
-                        "part_of_speech": part_of_speech,
+                        "part_of_speech": None,
                     }
                 )
             else:
-                rows.append({"number": None, "text": sense, "part_of_speech": part_of_speech})
+                rows.append({"number": None, "text": sense, "part_of_speech": None})
     return json.dumps(rows, ensure_ascii=False)
 
 
