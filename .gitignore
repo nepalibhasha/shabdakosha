@@ -22,6 +22,8 @@
 /shabdakosha/**/*.pyc
 !/scripts/
 !/scripts/*
+!/tests/
+!/tests/*
 !/docs/
 !/docs/*
 !/data/
@@ -44,6 +46,7 @@
 !uv.lock
 !pyproject.toml
 !README.md
+!AGENTS.md
 
 # Virtual environments
 .venv
