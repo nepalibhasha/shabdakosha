@@ -20,7 +20,10 @@ from shabdakosha.build_db import (
     load_dictionary_info,
     setup_database,
 )
-from shabdakosha.headword_aliases import generate_slash_headword_aliases
+from shabdakosha.headword_aliases import (
+    generate_slash_headword_aliases,
+    part_looks_like_full_alternate,
+)
 
 
 DEFAULT_REVIEW_STATUS = "pending"
@@ -128,6 +131,26 @@ def build_temp_database(data_dir: Path, db_path: Path) -> None:
         conn.close()
 
 
+def legacy_reduplicated_aliases(source_headword: str) -> set[str]:
+    parts = [part.strip() for part in source_headword.split("/") if part.strip()]
+    if len(parts) < 2:
+        return set()
+
+    left = parts[0]
+    aliases = set()
+    for part in parts[1:]:
+        if not part or not part_looks_like_full_alternate(left, part):
+            continue
+        index = left.rfind(part[0])
+        if index < 0:
+            continue
+        alias = left[:index] + part
+        if alias != part:
+            aliases.add(alias)
+            aliases.add(alias.replace(" ", ""))
+    return aliases
+
+
 def generate_groups(data_dir: Path, existing: dict[tuple[str, str, str], dict]) -> list[dict]:
     with tempfile.TemporaryDirectory() as tmp_dir:
         db_path = Path(tmp_dir) / "dictionary.db"
@@ -168,10 +191,18 @@ def generate_groups(data_dir: Path, existing: dict[tuple[str, str, str], dict]) 
                     }
 
                 group = groups[group_key]
+                current_resolutions = generate_slash_headword_aliases(source_headword)
+                stale_aliases = legacy_reduplicated_aliases(source_headword)
+                if group["status"] == DEFAULT_REVIEW_STATUS and stale_aliases:
+                    group["headwords"] = [
+                        headword
+                        for headword in group["headwords"]
+                        if headword not in stale_aliases
+                    ]
                 seen_headwords = set(group["headwords"])
                 appended_resolution = False
 
-                for resolution in generate_slash_headword_aliases(source_headword):
+                for resolution in current_resolutions:
                     if resolution.alias in seen_headwords:
                         continue
                     seen_headwords.add(resolution.alias)
