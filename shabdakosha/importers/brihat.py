@@ -7,6 +7,7 @@ import re
 from pathlib import Path
 from typing import Iterator
 
+from shabdakosha.abbreviations import expand_brihat_abbreviation
 from shabdakosha.models import Entry
 from shabdakosha.text import normalize_text
 
@@ -57,13 +58,29 @@ def split_definitions(definition: str) -> str:
             [{"number": None, "text": definition.strip(), "part_of_speech": None}],
             ensure_ascii=False,
         )
-    return json.dumps(
-        [
-            {"number": number, "text": text.strip(), "part_of_speech": None}
-            for number, text in matches
-        ],
-        ensure_ascii=False,
-    )
+
+    rows = [
+        {"number": number, "text": text.strip(), "part_of_speech": None}
+        for number, text in matches
+    ]
+
+    for index in range(1, len(rows)):
+        previous_text = rows[index - 1]["text"]
+        short_form = re.search(r"\s+([^\s]+?\.)\s*$", previous_text)
+        if short_form:
+            rows[index - 1]["text"] = previous_text[: short_form.start()].strip()
+            rows[index]["text"] = f"{short_form.group(1)} {rows[index]['text']}"
+            rows[index]["part_of_speech"] = short_form.group(1)
+
+    for row in rows:
+        text = row["text"]
+        part_of_speech = re.search(r"^([^\s]+?\.)\s+", text)
+        if part_of_speech:
+            row["part_of_speech"] = part_of_speech.group(1)
+            row["text"] = text[part_of_speech.end() :].strip()
+        row["part_of_speech"] = expand_brihat_abbreviation(row["part_of_speech"])
+
+    return json.dumps(rows, ensure_ascii=False)
 
 
 def iter_entries(dictionary_dir: Path) -> Iterator[Entry]:

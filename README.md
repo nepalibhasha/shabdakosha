@@ -89,7 +89,8 @@ artifacts.
 The `create_db.py` script generates a SQLite database file located at
 `data/dictionary.db`. This database contains a `dictionaries` table for source
 metadata, a `source_entries` table that preserves dictionary entries as curated,
-and an `entries` table for user-facing lookup headwords.
+an `entries` table for user-facing lookup headwords, and generated search
+metadata tables such as `roman_aliases`.
 
 The `dictionaries` table includes:
 
@@ -111,7 +112,7 @@ The `source_entries` table includes:
 | `display_headword` | TEXT    | The dictionary headword exactly as maintained, including slash notation.  |
 | `base_word`      | TEXT      | The unnumbered word used for variant grouping.                            |
 | `variant_number` | INTEGER   | Variant number for duplicate headwords, if applicable.                    |
-| `part_of_speech` | TEXT      | The part of speech, etymology, or grammatical note if identified.         |
+| `part_of_speech` | TEXT      | The part of speech, etymology, or grammatical note if identified; generated importers may expand known abbreviations. |
 | `definition`     | TEXT      | The definition or explanation of the word.                                |
 | `split_definitions` | TEXT   | Definition senses as JSON.                                                |
 | `source_file`    | TEXT      | Source reference for the entry.                                           |
@@ -126,12 +127,42 @@ source row:
 | `word`            | TEXT      | Searchable lookup headword.                                              |
 | `base_word`       | TEXT      | Grouping word. For approved slash rows, this is the source slash headword. |
 | `variant_number`  | INTEGER   | Variant number for duplicate source headwords, if applicable.            |
-| `part_of_speech`  | TEXT      | Copied from the source entry.                                            |
+| `part_of_speech`  | TEXT      | Copied from the generated source entry.                                  |
 | `definition`      | TEXT      | Copied from the source entry.                                            |
 | `split_definitions` | TEXT    | Copied definition senses as JSON.                                        |
 | `source_file`     | TEXT      | Source reference for the entry.                                          |
 | `source_entry_id` | INTEGER   | Link to `source_entries.id`.                                             |
 | `entry_kind`      | TEXT      | `source_headword` or `resolved_headword`.                                |
+
+The `roman_aliases` table contains generated romanized search metadata. These
+rows are not reviewed dictionary content and are not canonical lookup headwords.
+They point back to `entries.id` and `source_entries.id`:
+
+| Column Name         | Data Type | Description                                                             |
+| ------------------- | --------- | ----------------------------------------------------------------------- |
+| `dictionary_id`     | TEXT      | Source dictionary id.                                                   |
+| `entry_id`          | INTEGER   | Link to the canonical lookup row in `entries`.                          |
+| `source_entry_id`   | INTEGER   | Link to the preserved source row in `source_entries`.                    |
+| `source_word`       | TEXT      | Devanagari word used to generate aliases, usually an unnumbered base.    |
+| `alias`             | TEXT      | Lowercase roman search alias.                                           |
+| `kind`              | TEXT      | Generation strategy, such as `iast`, `iast_ascii`, or `casual`.         |
+| `weight`            | INTEGER   | Relative confidence for ranking and debugging.                          |
+| `generator_version` | TEXT      | Version string for reproducibility.                                     |
+| `source_scheme`     | TEXT      | Standard transliteration base. Currently `IAST`.                        |
+
+Roman aliases are generated during the database build from Devanagari lookup
+headwords. Numbered variants such as `शब्द(१)` use their base word (`शब्द`) for
+alias generation, and unresolved slash headwords such as `आजकल/काल` are skipped
+until approved resolved lookup rows exist. The generator uses IAST as the
+reproducible transliteration base, then derives capped casual Nepali typing
+variants. Examples:
+
+| Source | IAST base | Generated search aliases include |
+| ------ | --------- | -------------------------------- |
+| `पानी` | `pānī`    | `paani`, `pani`                  |
+| `शब्द` | `śabda`  | `shabda`, `sabda`, `shabd`       |
+| `वचन` | `vacana`  | `vachan`, `wachan`, `bachan`     |
+| `संसार` | `saṃsāra` | `sansaar`, `samsaar`, `sansar` |
 
 Slash-headword mappings are reviewed in each dictionary's
 `headword_resolutions.jsonl` file before they materialize extra lookup rows.
@@ -197,6 +228,9 @@ lookup headwords share the same dictionary source entry.
 - Slash headwords such as `आजकल/काल` are preserved in `source_entries`.
   Approved per-dictionary `headword_resolutions.jsonl` lines materialize
   additional `entries.word` lookup rows that point back to the same source entry.
+- Romanized aliases are generated metadata for search and autocomplete. They do
+  not modify reviewed `.txt` corpus files and do not create additional
+  `entries.word` rows.
 - Future improvement: once a slash headword has approved split lookup rows,
   consider suppressing the original slash form from ordinary `entries.word`
   search results while keeping it in `source_entries.display_headword` for
